@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>注册 - 虚拟信用卡</title>
+    <!-- 引入Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 基础样式 (同 login.html) */
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
+            background-color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #1c1c1e;
+        }
+        .app-container {
+            width: 390px;
+            max-width: 100%;
+            height: 844px;
+            background-color: #ffffff; 
+            border-radius: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        /* iOS 状态栏 (同 login.html) */
+        .ios-status-bar {
+            width: 100%; height: 44px; display: flex;
+            justify-content: space-between; align-items: center;
+            padding: 0 24px; box-sizing: border-box; background-color: transparent; 
+            color: #1c1c1e; position: absolute; top: 0; left: 0;
+            z-index: 10;
+        }
+        .status-bar-time { font-size: 15px; font-weight: 600; }
+        .status-bar-icons { display: flex; align-items: center; gap: 5px; }
+        .status-bar-icons .icon { width: 18px; height: 18px; stroke-width: 1.5; fill: none; stroke: currentColor; }
+        .status-bar-icons .icon-battery { width: 24px; height: 24px; stroke-width: 1.5; }
+        
+        .dynamic-island-notch {
+            position: absolute; top: 8px; left: 50%;
+            transform: translateX(-50%); width: 120px; height: 30px; 
+            background-color: #000; border-radius: 20px; z-index: 9;
+        }
+        /* iOS Home 指示器 (同 login.html) */
+        .home-indicator {
+            width: 134px; height: 5px; background-color: #1c1c1e;
+            border-radius: 100px; position: absolute; bottom: 10px;
+            left: 50%; transform: translateX(-50%); z-index: 12;
+        }
+
+        /* 修复 object-fit (同 login.html) */
+        .object-contain {
+            object-fit: contain;
+        }
+        
+        /* 渐变背景 (绿色) */
+        .gradient-bg {
+            background: linear-gradient(135deg, #a8e063 0%, #56ab2f 100%);
+        }
+
+        /* [修改] 注册流程面板 */
+        .register-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            /* [修改] 高度调整为 40% */
+            height: 40%;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+            transform: translateY(100%);
+            transition: transform 0.5s ease-in-out;
+            z-index: 20;
+            padding: 24px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        .register-panel.is-visible {
+            transform: translateY(0);
+        }
+        
+        /* [新增] 类似多邻国的进度条 */
+        .progress-bar-container {
+            width: 100%;
+            background-color: #e5e7eb; /* 轨道 */
+            border-radius: 99px;
+            height: 12px;
+            margin-bottom: 8px;
+            display: flex; /* [新增] 用于标注 */
+            align-items: center;
+            padding: 0 4px;
+            box-sizing: border-box;
+        }
+        .progress-bar-inner {
+            width: 0%; /* JS控制 */
+            height: 6px;
+            background-color: #22c55e; /* 绿色 */
+            border-radius: 99px;
+            transition: width 0.4s ease-out;
+        }
+        .progress-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px; /* [修改] 移到进度条上方 */
+        }
+        
+        /* [修改] 子步骤样式 - 移除滚动条 */
+        .sub-step-area {
+            flex-grow: 1;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center; /* 居中 */
+            justify-content: center; /* 居中 */
+            text-align: center;
+        }
+        .sub-step-item {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* 居中 */
+            justify-content: center; /* 居中 */
+            gap: 1rem; /* 间距 16px */
+            opacity: 0;
+            transform: scale(0.95);
+            transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+            pointer-events: none; /* 隐藏时不可点击 */
+            overflow-y: auto; /* 允许子步骤内部滚动 */
+            /* 隐藏滚动条但保持滚动功能 */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE/Edge */
+        }
+        .sub-step-item::-webkit-scrollbar {
+            display: none; /* Chrome/Safari/Opera */
+        }
+        .sub-step-item.active {
+            opacity: 1;
+            transform: scale(1);
+            pointer-events: auto; /* 激活时可点击 */
+        }
+
+        /* [新增] 上传预览框 */
+        .upload-preview-box {
+            width: 100%;
+            max-width: 280px;
+            aspect-ratio: 85.6 / 53.98; /* 信用卡/护照比例 */
+            border: 2px dashed #9ca3af;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f9fafb;
+            position: relative;
+            overflow: hidden; /* 裁剪预览图 */
+            cursor: pointer;
+        }
+        .upload-preview-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* 覆盖满 */
+        }
+        .upload-preview-box .placeholder-icon {
+            color: #9ca3af;
+        }
+        .upload-preview-box input[type="file"] {
+            display: none;
+        }
+
+        /* [新增] 单个确认按钮 */
+        .confirm-btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s, opacity 0.2s;
+            background-color: #22c55e;
+            color: white;
+            width: 100%;
+            max-width: 280px;
+        }
+        .confirm-btn:hover {
+            background-color: #16a34a;
+        }
+        .confirm-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* [新增] 信用卡复制 (来自 index.html) */
+        /* [修改] 增加了 index.html 中缺失的 camel-watermark-preview 和 virtual-credit-preview 样式 */
+        .credit-card-preview {
+            background: linear-gradient(145deg, #0d2a4f 0%, #1a3c5d 30%, #3a608a 100%);
+            color: white; border-radius: 16px; padding: 16px;
+            width: 100%; max-width: 280px; aspect-ratio: 85.6 / 53.98;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            box-sizing: border-box; overflow: hidden;
+        }
+        .credit-card-preview::before {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient( 45deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.05) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.05) 70%, rgba(255, 255, 255, 0) 100% );
+            transform: rotate(30deg); pointer-events: none; z-index: 2;
+        }
+        .camel-watermark-preview { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            z-index: 0; opacity: 0.12; color: #ffffff; width: 60px; height: 60px;
+        }
+        .card-number-preview { 
+            position: absolute; top: 45%; left: 16px; 
+            font-family: Menlo, Monaco, Consolas, "Courier New", monospace; 
+            font-size: 16px; font-weight: 500; letter-spacing: 2px; color: #f0f0f0; 
+            z-index: 3;
+        }
+        .card-visa-preview { 
+            position: absolute; bottom: 12px; right: 16px; 
+            font-size: 20px; font-weight: bold; font-style: italic; color: #f0f0f0; 
+            z-index: 3;
+        }
+        .card-region-preview {
+            position: absolute; top: 16px; left: 16px; font-size: 10px; font-weight: 300; 
+            color: rgba(255, 255, 255, 0.6); text-transform: uppercase; letter-spacing: 1px; z-index: 3;
+        }
+        .card-virtual-credit-preview {
+            position: absolute; bottom: 14px; left: 16px; font-size: 12px; font-weight: 300; 
+            opacity: 0.8; color: rgba(255, 255, 255, 0.7); z-index: 3;
+        }
+        
+        /* [未修改] 表单输入框 (用于卡号) */
+        .form-input {
+            background-color: #f3f4f6;
+            border: 1px solid #d1d5db;
+            color: #111827;
+            font-size: 14px;
+            border-radius: 12px;
+            padding: 10px 14px;
+            width: 100%;
+            max-width: 280px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            text-align: center;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #22c55e; 
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
+        }
+
+        /* [新增] 玻璃风格滚轮日期选择器 */
+        .date-picker-container {
+            width: 100%;
+            max-width: 280px;
+            height: 200px;
+            position: relative;
+            overflow: hidden;
+        }
+        .date-picker-glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .date-picker-wheels {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            justify-content: center;
+            position: relative;
+        }
+        .date-wheel {
+            flex: 1;
+            max-width: 80px;
+            height: 160px;
+            overflow: hidden;
+            position: relative;
+        }
+        .date-wheel::before,
+        .date-wheel::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 60px;
+            z-index: 2;
+            pointer-events: none;
+        }
+        .date-wheel::before {
+            top: 0;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0.9), transparent);
+        }
+        .date-wheel::after {
+            bottom: 0;
+            background: linear-gradient(to top, rgba(255, 255, 255, 0.9), transparent);
+        }
+        .date-wheel-items {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            padding-top: 60px; /* 顶部padding，使第一个item的顶部在选中区域顶部 */
+            padding-bottom: 60px; /* 底部padding */
+        }
+        .date-wheel-item {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 500;
+            color: #374151;
+            cursor: pointer;
+            user-select: none;
+        }
+        .date-wheel-item.selected {
+            color: #22c55e;
+            font-weight: 700;
+            font-size: 20px;
+        }
+        .date-picker-selection-line {
+            position: absolute;
+            left: 20px;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 40px;
+            border-top: 2px solid #22c55e;
+            border-bottom: 2px solid #22c55e;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .date-input-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 280px;
+        }
+        .date-input-wrapper .arrow-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280;
+            pointer-events: auto;
+            z-index: 1;
+        }
+        .date-input-wrapper .arrow-icon.opacity-50 {
+            pointer-events: none;
+        }
+        
+        /* [未修改] 文件上传按钮 (用于PDF) */
+        .file-upload-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 16px;
+            background-color: #f3f4f6;
+            border: 1px dashed #9ca3af;
+            border-radius: 12px;
+            color: #374151;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+            width: 100%;
+            max-width: 280px;
+        }
+        .file-upload-btn:hover { background-color: #e5e7eb; border-color: #6b7280; }
+        .file-upload-btn svg { width: 20px; height: 20px; margin-right: 10px; }
+        .file-upload-btn input[type="file"] { display: none; }
+        .file-upload-label { font-size: 12px; color: #16a34a; font-weight: 500; }
+    </style>
+</head>
+<body>
+
+    <div class="app-container" id="app-container">
+        <!-- 伪状态栏 --><div class="dynamic-island-notch"></div>
+        <div class="ios-status-bar">
+            <span class="status-bar-time">9:41</span>
+            <div class="status-bar-icons">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><path d="M5.5 16.5v-3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1zm6 0v-6a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1zm6 0v-9a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1z"></path></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon icon-battery"><rect x="1" y="6" width="18" height="12" rx="2" ry="2" stroke="currentColor" fill="none" stroke-width="1.5"></rect><line x1="23" y1="10" x2="23" y2="14" stroke="currentColor" stroke-width="2"></line><rect x="3" y="8" width="14" height="8" rx="1" ry="1" fill="currentColor" stroke="none"></rect></svg>
+            </div>
+        </div>
+
+        <!-- [修改] 页面布局调整为上 (60%) + 下 (40%) -->
+        
+        <!-- 阶段 1: 顶部 (固定) -->
+        <!-- [修改] h-[60%] 顶部区域 -->
+        <div id="register-top" class="w-full h-[60%] flex flex-col justify-center items-center text-center pt-10 px-8 box-border flex-shrink-0 relative">
+            
+            <!-- [新增] 顶部图标 -->
+            <div class="absolute top-14 left-6 z-20">
+                <a href="/login" class="text-gray-500">
+                    <svg class="w-7 h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </svg>
+                </a>
+            </div>
+            <div class="absolute top-14 right-6 z-20 flex gap-4">
+                <button class="text-gray-500">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </button>
+                <button class="text-gray-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-1.036.84-1.875 1.875-1.875h4.5c1.036 0 1.875.84 1.875 1.875v4.5c0 1.036-.84 1.875-1.875 1.875h-4.5A1.875 1.875 0 013.75 9.375v-4.5zM3.75 14.625c0-1.036.84-1.875 1.875-1.875h4.5c1.036 0 1.875.84 1.875 1.875v4.5c0 1.036-.84 1.875-1.875 1.875h-4.5A1.875 1.875 0 013.75 19.125v-4.5zM13.5 4.875c0-1.036.84-1.875 1.875-1.875h4.5c1.036 0 1.875.84 1.875 1.875v4.5c0 1.036-.84 1.875-1.875 1.875h-4.5A1.875 1.875 0 0113.5 9.375v-4.5zM13.5 14.625c0-1.036.84-1.875 1.875-1.875h4.5c1.036 0 1.875.84 1.875 1.875v4.5c0 1.036-.84 1.875-1.875 1.875h-4.5A1.875 1.875 0 0113.5 19.125v-4.5z" />
+                    </svg>
+                </button>
+                </div>
+
+            <!-- GIF -->
+            <div class="h-40 flex-shrink-0 mt-16">
+                <img id="random-emoji-gif" alt="Emoji" class="w-40 h-40 object-contain" onerror="this.src='https://placehold.co/160x160/eeeeee/aaaaaa?text=E'; this.onerror=null;">
+            </div>
+            <!-- [修改] 固定文字 -->
+            <p class="text-xl font-medium text-gray-700 mt-4">
+                十五分钟，我们陪你<br>开始一段新旅程
+            </p>
+                </div>
+
+        <!-- 阶段 1: 底部 (启动页, 将被面板覆盖) -->
+        <!-- [修改] h-[40%] 底部区域 -->
+        <main id="register-bottom-intro" class="w-full h-[40%] flex flex-col items-center text-center px-8 pb-8 box-border relative z-10">
+                <!-- 中部 欢迎语 (渐显) -->
+            <div class="flex-grow flex flex-col justify-center items-center transition-opacity duration-500">
+                <h1 class="text-2xl font-semibold text-gray-900">Hi, {{ user_name }}.</h1>
+                <p class="text-xl text-gray-700 mt-4 fade-in-1">世界那么大</p>
+                <p class="text-xl text-gray-700 mt-2 fade-in-2">我们陪你去看看</p>
+                </div>
+
+                <!-- 底部 "Join" 按钮 -->
+            <div class="w-full pb-6 flex-shrink-0 transition-opacity duration-500">
+                    <button id="join-btn" class="w-full max-w-xs mx-auto text-white text-lg font-semibold py-4 px-6 rounded-2xl gradient-bg shadow-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center gap-3">
+                        <img id="face-id-gif-icon" src="/static/FaceID.gif" alt="Face ID" class="w-8 h-8 object-contain rounded-lg" onerror="this.src='https://placehold.co/32x32/eeeeee/aaaaaa?text=F'; this.onerror=null;">
+                        <span>Join, WeTogether!</span>
+                    </button>
+                </div>
+        </main>
+
+
+        <!-- 阶段 2: 注册流程毛玻璃面板 (绝对定位) -->
+            <div id="register-panel" class="register-panel">
+                
+            <!-- [修改] 头部: 进度条 -->
+            <div class="flex-shrink-0">
+                <p id="progress-label" class="progress-label">身份验证</p>
+                <div class="progress-bar-container">
+                    <div id="progress-bar-inner" class="progress-bar-inner"></div>
+                </div>
+                </div>
+
+
+            <!-- [修改] 步骤内容容器 (自动推进) -->
+            <!-- [重要] 步骤已重新排序和恢复 -->
+            <div id="sub-step-area" class="sub-step-area">
+
+                <!-- 0. 启用FaceID -->
+                <div class="sub-step-item active" data-label="身份验证" data-progress="10%">
+                    <p class="text-xl font-semibold text-gray-800 mb-2">录入 Face ID</p>
+                    <p class="text-base text-gray-600 mb-4 leading-relaxed">
+                        请正对摄像头，保持光线充足<br>
+                        点击下方按钮开始录入
+                    </p>
+
+                    <!-- 摄像头预览 -->
+                    <video id="faceid-video" autoplay playsinline class="w-56 h-56 rounded-3xl bg-black mb-4 shadow-lg hidden"></video>
+
+                    <!-- Face ID 图标（未录入时显示） -->
+                    <div id="faceid-icon-container" class="relative w-28 h-28 mb-4">
+                        <img id="faceid-btn" src="/static/FaceID.gif" alt="Face ID 动画" class="w-28 h-28 object-contain rounded-3xl cursor-pointer"
+                             onerror="this.src='https://placehold.co/112x112/eeeeee/aaaaaa?text=FaceID'; this.onerror=null;">
+                    </div>
+
+                    <!-- 操作按钮 -->
+                    <button id="start-camera-btn" onclick="startFaceIDCamera()" class="px-8 py-3 bg-green-500 text-white text-base font-medium rounded-full hover:bg-green-600 transition shadow-md">
+                        启动摄像头
+                    </button>
+                    <button id="capture-face-btn" onclick="captureFaceID()" class="px-8 py-3 bg-blue-500 text-white text-base font-medium rounded-full hover:bg-blue-600 transition shadow-md hidden">
+                        拍照录入
+                    </button>
+                    <p id="faceid-status" class="text-base mt-3 font-medium"></p>
+                </div>
+
+                <!-- 1. 上传护照身份页 -->
+                <div class="sub-step-item" data-label="身份验证" data-progress="20%">
+                    <p class="text-lg font-medium text-gray-700">请上传护照身份页</p>
+                    <label class="upload-preview-box">
+                        <input type="file" accept="image/*" onchange="showImagePreview(this, 'preview-1', 'confirm-1')">
+                        <img id="preview-1" src="" alt="预览" class="hidden">
+                        <svg class="w-12 h-12 placeholder-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                        </svg>
+                        </label>
+                    <button id="confirm-1" class="confirm-btn hidden" onclick="showSubStep(2)">确认上传</button>
+                </div>
+
+                <!-- 2. [修改] 加载/成功 (护照1) -->
+                <div class="sub-step-item" data-label="正在核对" data-progress="30%">
+                    <p class="text-lg font-medium text-gray-700">我们正在核对</p>
+                    <!-- [修改] GIF 播放一次后停留在最后一帧 -->
+                    <img src="/static/success.gif" alt="加载中" class="success-gif w-32 h-32 object-contain" onerror="this.src='https://placehold.co/128x128/eeeeee/aaaaaa?text=Loading'; this.onerror=null;">
+                </div>
+
+                <!-- 3. 上传签名页 (无成功页) -->
+                <div class="sub-step-item" data-label="身份验证" data-progress="40%">
+                    <p class="text-lg font-medium text-gray-700">请上传护照签名页</p>
+                    <label class="upload-preview-box">
+                        <input type="file" accept="image/*" onchange="showImagePreview(this, 'preview-2', 'confirm-2')">
+                        <img id="preview-2" src="" alt="预览" class="hidden">
+                        <svg class="w-12 h-12 placeholder-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                        </svg>
+                        </label>
+                    <button id="confirm-2" class="confirm-btn hidden" onclick="showSubStep(4)">确认上传</button>
+                    </div>
+
+                <!-- 4. 入关小票 -->
+                <div class="sub-step-item" data-label="行程验证" data-progress="50%">
+                    <p class="text-sm font-medium text-gray-700">现在您在<span style="color: #22c55e;">阿布扎比</span>的旅程，<br>请上传入关小票</p>
+                    <label class="upload-preview-box">
+                        <input type="file" accept="image/*" onchange="showImagePreview(this, 'preview-3', 'confirm-3')">
+                        <img id="preview-3" src="" alt="预览" class="hidden">
+                        <svg class="w-12 h-12 placeholder-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h.01M15 12h.01M10.5 16.5h3m-6.75 3.75a1.5 1.5 0 001.5 1.5h10.5a1.5 1.5 0 001.5-1.5v-15a1.5 1.5 0 00-1.5-1.5H5.25a1.5 1.5 0 00-1.5 1.5v15z" /></svg>
+                        </label>
+                    <button id="confirm-3" class="confirm-btn hidden" onclick="showSubStep(5)">确认上传</button>
+                    <p class="text-xs text-gray-500">(如丢失，请上传您的出入境记录)</p>
+                    </div>
+
+                <!-- 5. [新增] 加载/成功 (入关小票) -->
+                <div class="sub-step-item" data-label="正在核对" data-progress="60%">
+                    <p class="text-lg font-medium text-gray-700">正在验证行程</p>
+                    <img src="/static/success.gif" alt="加载中" class="success-gif w-32 h-32 object-contain" onerror="this.src='https://placehold.co/128x128/eeeeee/aaaaaa?text=Loading'; this.onerror=null;">
+                    </div>
+
+                <!-- 6. 消费流水 -->
+                <div class="sub-step-item" data-label="财务状况" data-progress="70%">
+                    <p class="text-lg font-medium text-gray-700">请上传消费流水 (PDF)</p>
+                        <label class="file-upload-btn">
+                        <input id="bank-statement-file" type="file" accept=".pdf" onchange="handleBankStatementUpload(this)">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25M9 17.25v.008c0 .02.015.037.037.037h.008a.037.037 0 00.037-.037v-.008a.037.037 0 00-.037-.037h-.008A.037.037 0 009 17.25zm.008 0c.02 0 .037.015.037.037v.008a.037.037 0 00.037.037h.008a.037.037 0 00.037-.037v-.008a.037.037 0 00-.037-.037h-.008a.037.037 0 00-.037.037z" /></svg>
+                        <span>上传PDF</span>
+                        </label>
+                        <span id="file-label-4" class="file-upload-label"></span>
+                    <button id="confirm-4" class="confirm-btn hidden" onclick="uploadBankStatement()">确认</button>
+                    <a href="#" class="text-xs text-gray-500 hover:text-green-600">找不到流水?</a>
+                </div>
+                
+                <!-- 7. [新增] 加载/成功 (流水) -->
+                <div class="sub-step-item" data-label="正在处理" data-progress="75%">
+                    <p class="text-lg font-medium text-gray-700">正在处理文件</p>
+                    <img src="/static/success.gif" alt="加载中" class="success-gif w-32 h-32 object-contain" onerror="this.src='https://placehold.co/128x128/eeeeee/aaaaaa?text=Loading'; this.onerror=null;">
+                </div>
+
+                <!-- 8. [恢复] 余额证明 -->
+                <div class="sub-step-item" data-label="财务状况" data-progress="80%">
+                    <p class="text-lg font-medium text-gray-700">请上传余额证明 (PDF)</p>
+                        <label class="file-upload-btn">
+                        <input id="balance-proof-file" type="file" accept=".pdf" onchange="handleBalanceProofUpload(this)">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25M9 17.25v.008c0 .02.015.037.037.037h.008a.037.037 0 00.037-.037v-.008a.037.037 0 00-.037-.037h-.008A.037.037 0 009 17.25zm.008 0c.02 0 .037.015.037.037v.008a.037.037 0 00.037.037h.008a.037.037 0 00.037-.037v-.008a.037.037 0 00-.037-.037h-.008a.037.037 0 00-.037.037z" /></svg>
+                        <span>上传PDF</span>
+                        </label>
+                        <span id="file-label-5" class="file-upload-label"></span>
+                    <button id="confirm-5" class="confirm-btn hidden" onclick="uploadBalanceProof()">确认</button>
+                    <a href="#" class="text-xs text-gray-500 hover:text-green-600">找不到余额证明?</a>
+                    </div>
+
+                <!-- 9. [新增] 加载/成功 (余额) -->
+                <div class="sub-step-item" data-label="正在处理" data-progress="85%">
+                    <p class="text-lg font-medium text-gray-700">正在处理文件</p>
+                    <img src="/static/success.gif" alt="加载中" class="success-gif w-32 h-32 object-contain" onerror="this.src='https://placehold.co/128x128/eeeeee/aaaaaa?text=Loading'; this.onerror=null;">
+                        </div>
+
+                <!-- 10. 停留时间 -->
+                <div class="sub-step-item" data-label="确认信息" data-progress="90%">
+                    <p class="text-lg font-medium text-gray-700">阿布扎比的旅程，何时返程？</p>
+                    <div class="date-picker-container">
+                        <div class="date-picker-glass">
+                            <div class="date-picker-selection-line"></div>
+                            <div class="date-picker-wheels">
+                                <div class="date-wheel" id="year-wheel">
+                                    <div class="date-wheel-items" id="year-items"></div>
+                        </div>
+                                <div class="date-wheel" id="month-wheel">
+                                    <div class="date-wheel-items" id="month-items"></div>
+                        </div>
+                                <div class="date-wheel" id="day-wheel">
+                                    <div class="date-wheel-items" id="day-items"></div>
+                        </div>
+                        </div>
+                        </div>
+                    </div>
+                    <div class="date-input-wrapper mt-4">
+                        <svg id="date-arrow-btn" class="w-5 h-5 arrow-icon cursor-pointer opacity-50 transition-opacity" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" onclick="goToNextStepAfterDate()">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </div>
+                    <p id="trip-duration-label" class="text-sm text-gray-600 mt-2 h-5"></p>
+                    </div>
+                    
+                <!-- 11. [恢复] 定制卡号 -->
+                <div class="sub-step-item" data-label="确认信息" data-progress="95%">
+                    <p class="text-lg font-medium text-gray-700 mt-4">信用卡，呈上</p>
+                    <div class="credit-card-preview">
+                        <svg class="camel-watermark-preview" viewBox="0 0 24 24" fill="currentColor">
+                            <path
+                                d="M21.78 12.35c.14-.52-.16-1.04-.68-1.18l-1.95-.51c-.6-.16-1.24.16-1.51.72l-.76 1.57c-.23.47-.76.7-1.27.53l-1.63-.55c-.51-.17-1.09.1-1.34.58l-1.07 2.1c-.3.59.1 1.3.73 1.45l2.25 .53c.63.15 1.2-.29 1.34-.92l.4-1.74c.1-.4.49-.6.88-.47l1.63.55c.39.13.8-.13.94-.52l1.01-2.16z M16.5 12c.83 0 1.5-.67 1.5-1.5S17.33 9 16.5 9s-1.5.67-1.5 1.5.67 1.5 1.5 1.5z M4.56 13.91c-.1-.22-.22-.43-.36-.63-.33-.47-.78-.85-1.3-.1-1.11 1.62-1.16 3.7.15 5.29l.09.1c.21.21.46.38.71.51.5.25 1.05.38 1.6.38.8 0 1.56-.25 2.21-.71.9-.64 1.58-1.58 1.9-2.66.39-1.27.3-2.68-.26-3.87-.1-.21-.21-.42-.33-.61l-.33-.51-.35-.51c-.1-.15-.22-.29-.35-.42-.41-.41-.98-.68-1.58-.68-.83 0-1.59.4-2.1.99z M9 10.5c0-.83-.67-1.5-1.5-1.5S6 9.67 6 10.5 6.67 12 7.5 12s1.5-.67 1.5-1.5z">
+                            </path>
+                        </svg>
+                        <span class="card-region-preview">United Arab Emirates</span>
+                        <span id="card-number-display" class="card-number-preview">**** **** XXXX XXXX</span> <!-- 修改这里 -->
+                        <span class="card-virtual-credit-preview">Virtual Credit</span>
+                        <span class="card-visa-preview">VISA</span>
+                    </div>
+                    <!-- 修改输入框 -->
+                    <div class="flex flex-col items-center gap-3 w-full max-w-[280px]">
+                        <input id="card-custom-input" type="text" class="form-input text-center w-full" placeholder="定制后八位 (选填，不填则随机)"
+                            maxlength="8" pattern="[0-9]*" inputmode="numeric" oninput="updateCardNumber(this)">
+                        <button class="px-8 py-3 bg-green-500 text-white text-base font-medium rounded-full hover:bg-green-600 transition shadow-md w-full"
+                            onclick="proceedToFinalStep()">
+                            继续
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 12. 开卡成功 (加载/成功) -->
+                <div class="sub-step-item" data-label="正在开卡" data-progress="100%">
+                    <p class="text-lg font-medium text-gray-700 mb-4">开卡成功</p>
+                    <img src="/static/success.gif" alt="加载中" class="success-gif w-32 h-32 object-contain mb-6"
+                        onerror="this.src='https://placehold.co/128x128/eeeeee/aaaaaa?text=Loading'; this.onerror=null;">
+
+                    <button onclick="showSubStep(13)" class="px-8 py-3 bg-green-500 text-white text-base font-medium rounded-full hover:bg-green-600 transition shadow-md mt-6">
+                        继续
+                    </button>
+                </div>
+
+                <!-- 13. 设置用户名 -->
+                <div class="sub-step-item" data-label="完成设置" data-progress="100%">
+                    <p class="text-xl font-semibold text-gray-800 mb-2">设置用户名</p>
+                    <p class="text-base text-gray-600 mb-4 leading-relaxed">
+                        请输入您的用户名
+                    </p>
+
+                    <input type="text" id="username-input" placeholder="请输入用户名"
+                           class="w-full max-w-[280px] px-4 py-3 text-center text-base border-2 border-gray-300 rounded-full focus:border-green-500 focus:outline-none transition"
+                           maxlength="20">
+
+                    <button onclick="confirmUsername()" class="px-8 py-3 bg-green-500 text-white text-base font-medium rounded-full hover:bg-green-600 transition shadow-md mt-4">
+                        继续
+                    </button>
+
+                    <p id="username-error" class="text-sm mt-2 text-red-600 hidden"></p>
+                </div>
+
+                <!-- 14. 授信协议 + 额度展示 -->
+                <div class="sub-step-item" data-label="完成" data-progress="100%">
+                    <p class="text-lg font-medium text-gray-700 mb-2">您的授信额度</p>
+
+                    <!-- 额度显示 -->
+                    <h2 id="final-credit-limit-display" class="text-4xl font-bold text-gray-900 mb-4">¥ 100,000.00</h2>
+
+                    <div class="flex items-center gap-2 mt-4">
+                        <input type="checkbox" id="agree-terms" class="w-4 h-4 rounded text-green-500 focus:ring-green-400">
+                        <label for="agree-terms" class="text-xs text-gray-700">我已阅读并同意 <a href="#"
+                                class="text-green-600">授信协议</a></label>
+                    </div>
+                    <button class="confirm-btn" onclick="completeRegistration()">进入我的信用卡</button>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- 伪 Home 指示器 --><div class="home-indicator"></div>
+
+    </div>
+    <script>
+        // [修改] 全局化变量
+        const allSubSteps = document.querySelectorAll('.sub-step-item');
+        const progressBar = document.getElementById('progress-bar-inner');
+        const progressLabel = document.getElementById('progress-label');
+        let currentSubStepIndex = 0;
+        window.returnDate = '';
+        window.customCardSuffix = '';
+        window.username = ''; // 新增：保存用户名
+        
+        // [新增] 定义所有“加载/成功”步骤的索引
+        const successStepIndices = [2, 5, 7, 9, 12];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // --- 阶段 1: 欢迎页 ---
+            const emojiGif = document.getElementById('random-emoji-gif');
+            if (emojiGif) {
+                const randomNum = Math.floor(Math.random() * 6) + 1; // 1 到 6
+                emojiGif.src = `/static/Emoji${randomNum}.gif`;
+                emojiGif.onerror = function() {
+                    this.src='https://placehold.co/160x160/eeeeee/aaaaaa?text=E' + randomNum;
+                    this.onerror=null;
+                };
+            }
+            
+            const joinBtn = document.getElementById('join-btn');
+            const registerPanel = document.getElementById('register-panel');
+            const introBottom = document.getElementById('register-bottom-intro');
+
+            joinBtn.addEventListener('click', () => {
+                registerPanel.classList.add('is-visible');
+                introBottom.style.opacity = '0';
+                introBottom.style.pointerEvents = 'none';
+                // 启动第一个子步骤
+                showSubStep(0);S
+            });
+            
+            // FaceID 按钮
+            const faceIdBtn = document.getElementById('faceid-btn');
+            const faceIdJoinGif = document.getElementById('faceid-join-gif');
+            
+            faceIdBtn.addEventListener('click', () => {
+                console.log('Face ID button clicked');
+                
+                // 获取原始路径
+                const originalGifSrc = '/static/faceid_join.gif';
+                let staticFrameDataUrl = null;
+                
+                // 先显示 faceid_join.gif（确保可见）
+                // 移除所有可能隐藏的类
+                faceIdJoinGif.classList.remove('hidden');
+                // 强制设置显示样式
+                faceIdJoinGif.style.display = 'block';
+                faceIdJoinGif.style.visibility = 'visible';
+                faceIdJoinGif.style.opacity = '1';
+                faceIdJoinGif.style.position = 'absolute';
+                faceIdJoinGif.style.top = '0';
+                faceIdJoinGif.style.left = '0';
+                faceIdJoinGif.style.zIndex = '10';
+                
+                // 隐藏 Face ID GIF
+                faceIdBtn.style.display = 'none';
+                faceIdBtn.classList.add('hidden');
+                
+                // 强制重新加载 GIF（确保从头播放）
+                const timestamp = '?t=' + Date.now();
+                
+                // 添加加载和错误处理
+                faceIdJoinGif.onload = function() {
+                    console.log('faceid_join.gif loaded successfully');
+                };
+                faceIdJoinGif.onerror = function() {
+                    console.error('Failed to load faceid_join.gif');
+                    // 显示占位符
+                    faceIdJoinGif.src = 'https://placehold.co/96x96/22c55e/ffffff?text=Join';
+                };
+                
+                faceIdJoinGif.src = originalGifSrc + timestamp;
+                console.log('Loading faceid_join.gif:', faceIdJoinGif.src);
+                
+                // 让 faceid_join.gif 播放一次后停留在最后一帧
+                if (!faceIdJoinGif.dataset.processed) {
+                    faceIdJoinGif.dataset.processed = 'true';
+                    
+                    function captureLastFrame(callback) {
+                        if (staticFrameDataUrl) {
+                            callback(staticFrameDataUrl);
+                            return;
+                        }
+                        
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        // 使用实际尺寸或默认值
+                        const width = faceIdJoinGif.naturalWidth || faceIdJoinGif.width || 96;
+                        const height = faceIdJoinGif.naturalHeight || faceIdJoinGif.height || 96;
+                        canvas.width = width;
+                        canvas.height = height;
+                        
+                        try {
+                            // 捕获当前显示的帧（应该是最后一帧）
+                            ctx.drawImage(faceIdJoinGif, 0, 0, width, height);
+                            const dataUrl = canvas.toDataURL('image/png');
+                            staticFrameDataUrl = dataUrl;
+                            callback(dataUrl);
+                        } catch (e) {
+                            console.error('Canvas capture failed:', e);
+                            callback(null);
+                        }
+                    }
+                    
+                    // 等待 GIF 加载并播放完成
+                    const handleGifLoad = function() {
+                        // 估算 faceid_join.gif 播放时间（大约 3-4 秒，给足够的时间）
+                        const estimatedDuration = 4000; // 4秒
+                        
+                        setTimeout(() => {
+                            // 额外延迟确保捕获最后一帧
+                            setTimeout(() => {
+                                captureLastFrame(function(dataUrl) {
+                                    if (dataUrl) {
+                                        // 直接替换为静态图片（最后一帧）
+                                        faceIdJoinGif.src = dataUrl;
+                                    } else {
+                                        console.log('Failed to capture last frame');
+                                    }
+                                });
+                            }, 300); // 额外延迟 300ms 确保捕获最后一帧
+                        }, estimatedDuration);
+                    };
+                    
+                    // 监听 load 事件（使用 once 确保只触发一次）
+                    const loadHandler = function() {
+                        // 延迟一下确保 GIF 开始播放
+                        setTimeout(() => {
+                            handleGifLoad();
+                        }, 100);
+                    };
+                    
+                    faceIdJoinGif.addEventListener('load', loadHandler, { once: true });
+                    
+                    // 如果 GIF 已经加载完成（可能是缓存，但添加时间戳后会重新加载）
+                    // 等待一下，如果 load 事件没有触发（说明是缓存且时间戳没有触发重新加载），则手动处理
+                    setTimeout(() => {
+                        // 检查是否已经添加了事件监听器但 GIF 已经完成加载
+                        // 如果 complete 为 true 且已经有尺寸，说明 GIF 已经加载
+                        if (faceIdJoinGif.complete && faceIdJoinGif.naturalWidth > 0) {
+                            // 检查 src 是否包含时间戳（说明已经重新加载）
+                            if (faceIdJoinGif.src.includes('?t=')) {
+                                // 已经重新加载，load 事件应该会触发，不需要手动处理
+                            } else {
+                                // 没有重新加载，可能是缓存，手动触发处理
+                                loadHandler();
+                            }
+                        }
+                    }, 200);
+                }
+                
+                // 2秒后跳转到下一步
+                setTimeout(() => {
+                    showSubStep(1);
+                }, 2000);
+            });
+        });
+
+        // --- [修改] 阶段 2: 子步骤注册流程 ---
+        function showSubStep(index) {
+            
+            // 隐藏当前
+            const currentActive = document.querySelector('.sub-step-item.active');
+            if (currentActive) {
+                currentActive.classList.remove('active');
+            }
+            
+            // 显示新的
+            const newStep = allSubSteps[index];
+            if (newStep) {
+                newStep.classList.add('active');
+                currentSubStepIndex = index;
+                
+                // 更新进度条
+                const progress = newStep.dataset.progress || '0%';
+                const label = newStep.dataset.label || '';
+                progressBar.style.width = progress;
+                progressLabel.textContent = label;
+                
+                // [新增] 如果是日期选择步骤（步骤10），初始化滚轮选择器
+                if (index === 10) {
+                    // 延迟初始化，确保DOM已渲染
+                    setTimeout(() => {
+                        if (!document.getElementById('year-items').children.length) {
+                            initDatePicker();
+                        }
+                    }, 100);
+                }
+                
+                // [修改] 检查是否是自动跳转的"加载/成功"步骤
+                if (successStepIndices.includes(index)) {
+                    const gifElement = newStep.querySelector('.success-gif');
+                    
+                    if (gifElement && !gifElement.dataset.processed) {
+                        // 标记为已处理，避免重复处理
+                        gifElement.dataset.processed = 'true';
+                        
+                        // 让 success.gif 播放一次后停留在最后一帧
+                        const originalGifSrc = gifElement.src;
+                        let staticFrameDataUrl = null;
+                        
+                        // 创建 canvas 来捕获最后一帧
+                        function captureLastFrame(callback) {
+                            if (staticFrameDataUrl) {
+                                callback(staticFrameDataUrl);
+                                return;
+                            }
+                            
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = gifElement.naturalWidth || 128;
+                            canvas.height = gifElement.naturalHeight || 128;
+                            
+                            try {
+                                // 在 GIF 播放完成后，捕获当前显示的帧（应该是最后一帧）
+                                ctx.drawImage(gifElement, 0, 0, canvas.width, canvas.height);
+                                const dataUrl = canvas.toDataURL('image/png');
+                                staticFrameDataUrl = dataUrl;
+                                callback(dataUrl);
+                            } catch (e) {
+                                console.log('Canvas capture failed, using fallback method');
+                                callback(null);
+                            }
+                        }
+                        
+                        // 监听 GIF 加载完成
+                        const handleLoad = function() {
+                            // 估算 GIF 播放时间（success.gif 大约 2-3 秒）
+                            const estimatedDuration = 2500; // 2.5 秒
+                            
+                            setTimeout(() => {
+                                // 播放一次后，将 GIF 替换为静态的最后一帧
+                                setTimeout(() => {
+                                    captureLastFrame(function(dataUrl) {
+                                        if (dataUrl) {
+                                            // 成功捕获最后一帧，替换为静态图片
+                                            gifElement.src = dataUrl;
+                                        }
+                                    });
+                                }, 100); // 额外延迟 100ms 确保捕获最后一帧
+                            }, estimatedDuration);
+                        };
+                        
+                        gifElement.addEventListener('load', handleLoad);
+                        
+                        // 如果 GIF 已经加载完成（缓存情况）
+                        if (gifElement.complete && gifElement.naturalWidth > 0) {
+                            setTimeout(() => {
+                                handleLoad();
+                            }, 100);
+                        }
+                    }
+
+                    // 2.0秒后, 自动跳转到下一步
+                    setTimeout(() => {
+                        showSubStep(index + 1); // 自动跳到下一步
+                    }, 2000); // 模拟2秒
+                }
+            }
+        }
+            
+        // [未修改] JS: 显示图片预览
+        function showImagePreview(input, previewId, confirmId) {
+            const preview = document.getElementById(previewId);
+            const confirmBtn = document.getElementById(confirmId);
+            const placeholder = preview.nextElementSibling; // 假设图标是下一个兄弟元素
+
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.classList.remove('hidden');
+                    if(placeholder) placeholder.classList.add('hidden');
+                    confirmBtn.classList.remove('hidden'); // 显示确认按钮
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+        
+        // [修改] PDF上传处理函数
+        let bankStatementFile = null;
+        let balanceProofFile = null;
+
+        function handleBankStatementUpload(input) {
+            const label = document.getElementById('file-label-4');
+            const confirmBtn = document.getElementById('confirm-4');
+            if (input.files && input.files[0]) {
+                bankStatementFile = input.files[0];
+                label.textContent = input.files[0].name;
+                confirmBtn.classList.remove('hidden');
+            }
+        }
+
+        function handleBalanceProofUpload(input) {
+            const label = document.getElementById('file-label-5');
+            const confirmBtn = document.getElementById('confirm-5');
+            if (input.files && input.files[0]) {
+                balanceProofFile = input.files[0];
+                label.textContent = input.files[0].name;
+                confirmBtn.classList.remove('hidden');
+            }
+        }
+
+        // 上传银行流水
+        async function uploadBankStatement() {
+            if (!bankStatementFile) {
+                alert('请先选择文件');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', bankStatementFile);
+
+            try {
+                showSubStep(7); // 显示加载动画
+                console.log('开始上传银行流水...');
+
+                const response = await fetch('/api/upload_bank_statement', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    console.log('✅ 银行流水上传成功:', result.message);
+                    // 等待PDF处理完成后再进入下一步
+                    setTimeout(() => showSubStep(8), 2000);
+                } else {
+                    alert('上传失败: ' + result.message);
+                    showSubStep(6); // 返回上传页面
+                }
+            } catch (error) {
+                console.error('❌ 上传错误:', error);
+                alert('上传失败，请重试');
+                showSubStep(6);
+            }
+        }
+
+        // 上传余额证明
+        async function uploadBalanceProof() {
+            if (!balanceProofFile) {
+                alert('请先选择文件');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', balanceProofFile);
+
+            try {
+                showSubStep(9); // 显示加载动画
+
+                const response = await fetch('/api/upload_balance_proof', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    console.log('余额证明上传成功:', result.message);
+
+                    // 上传成功后，预测信用额度（等待完成）
+                    console.log('开始预测信用额度...');
+                    const creditResult = await predictCreditLimit();
+
+                    if (creditResult) {
+                        console.log('额度预测完成，额度:', creditResult.credit_limit);
+                        // 等待2秒后进入下一步
+                        setTimeout(() => showSubStep(10), 2000);
+                    } else {
+                        console.error('额度预测失败，使用默认额度');
+                        // 即使失败也继续流程
+                        setTimeout(() => showSubStep(10), 2000);
+                    }
+                } else {
+                    alert('上传失败: ' + result.message);
+                    showSubStep(8); // 返回上传页面
+                }
+            } catch (error) {
+                console.error('上传错误:', error);
+                alert('上传失败，请重试');
+                showSubStep(8);
+            }
+        }
+
+        // 预测信用额度
+        async function predictCreditLimit() {
+            try {
+                console.log('调用额度预测API...');
+
+                const response = await fetch('/api/predict_credit_limit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    console.log('✅ 额度预测成功:', result);
+
+                    // 保存额度到全局变量
+                    window.predictedCreditLimit = result.credit_limit;
+                    window.creditLimitInfo = {
+                        amount: result.credit_limit,
+                        riskLevel: result.risk_level,
+                        multiplier: result.multiplier,
+                        probability: result.default_probability
+                    };
+
+                    // 更新最终页面的额度显示
+                    const finalDisplay = document.getElementById('final-credit-limit-display');
+                    if (finalDisplay) {
+                        finalDisplay.textContent = `¥ ${result.credit_limit.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+                    }
+
+                    return result;
+                } else {
+                    console.error('❌ 额度预测失败:', result.message);
+                    // 使用默认额度
+                    window.predictedCreditLimit = 100000;
+                    return null;
+                }
+            } catch (error) {
+                console.error('❌ 额度预测错误:', error);
+                // 使用默认额度
+                window.predictedCreditLimit = 100000;
+                return null;
+            }
+        }
+
+        // [保留] 旧的函数（用于其他文件上传）
+        function showFileUploaded(input, labelId, confirmId) {
+            const label = document.getElementById(labelId);
+            const confirmBtn = document.getElementById(confirmId);
+            if (input.files && input.files[0]) {
+                label.textContent = input.files[0].name;
+                confirmBtn.classList.remove('hidden');
+            }
+        }
+
+        // [新增] 滚轮日期选择器
+        let selectedYear = null;
+        let selectedMonth = null;
+        let selectedDay = null;
+        
+
+        // [修改] 确保在日期选择器初始化时也调用检查函数
+        function initDatePicker() {
+            const today = new Date();
+            const currentYear = today.getFullYear();
+
+            // 初始化年份（未来5年）
+            const yearItems = document.getElementById('year-items');
+            for (let i = 0; i < 5; i++) {
+                const year = currentYear + i;
+                const item = document.createElement('div');
+                item.className = 'date-wheel-item';
+                item.textContent = year;
+                item.dataset.value = year;
+                yearItems.appendChild(item);
+            }
+            selectedYear = currentYear;
+
+            // 初始化月份
+            const monthItems = document.getElementById('month-items');
+            for (let i = 1; i <= 12; i++) {
+                const item = document.createElement('div');
+                item.className = 'date-wheel-item';
+                item.textContent = i;
+                item.dataset.value = i;
+                monthItems.appendChild(item);
+            }
+            selectedMonth = today.getMonth() + 1;
+
+            // 初始化日期
+            updateDayWheel(currentYear, today.getMonth() + 1);
+            selectedDay = today.getDate();
+
+            // 设置初始选中状态（先设置位置）
+            updateSelectedItems();
+
+            // [新增] 初始化时也检查日期
+            checkDateAndUpdate();
+
+            // 延迟添加滚轮交互，确保 DOM 已更新
+            setTimeout(() => {
+                setupWheelInteraction('year-wheel', 'year-items', (value) => {
+                    selectedYear = parseInt(value);
+                    updateDayWheel(selectedYear, selectedMonth);
+                    updateSelectedItems();
+                    checkDateAndUpdate();
+                });
+
+                setupWheelInteraction('month-wheel', 'month-items', (value) => {
+                    selectedMonth = parseInt(value);
+                    updateDayWheel(selectedYear, selectedMonth);
+                    updateSelectedItems();
+                    checkDateAndUpdate();
+                });
+
+                setupWheelInteraction('day-wheel', 'day-items', (value) => {
+                    selectedDay = parseInt(value);
+                    updateSelectedItems();
+                    checkDateAndUpdate();
+                });
+            }, 50);
+        }
+        
+        function updateDayWheel(year, month) {
+            const dayItems = document.getElementById('day-items');
+            dayItems.innerHTML = '';
+            const daysInMonth = new Date(year, month, 0).getDate();
+            for (let i = 1; i <= daysInMonth; i++) {
+                const item = document.createElement('div');
+                item.className = 'date-wheel-item';
+                item.textContent = i;
+                item.dataset.value = i;
+                dayItems.appendChild(item);
+            }
+        }
+        
+        function setupWheelInteraction(wheelId, itemsId, callback) {
+            const wheel = document.getElementById(wheelId);
+            const items = document.getElementById(itemsId);
+            let isDragging = false;
+            let startY = 0;
+            let currentY = 0;
+            
+            // 初始化偏移量：从当前 transform 值获取，如果没有则找到选中项的索引
+            let currentTransform = items.style.transform;
+            let offset = 0;
+            if (currentTransform && currentTransform.includes('translateY')) {
+                const match = currentTransform.match(/translateY\((-?\d+)px\)/);
+                if (match) {
+                    offset = parseInt(match[1]);
+                }
+                } else {
+                // 如果没有 transform，找到当前选中项的索引
+                const itemsArray = Array.from(items.children);
+                const selectedIndex = itemsArray.findIndex(item => item.classList.contains('selected'));
+                if (selectedIndex !== -1) {
+                    offset = -selectedIndex * 40;
+                    items.style.transform = `translateY(${offset}px)`;
+                }
+            }
+            
+            function updatePosition() {
+                // 根据偏移量计算中心索引：offset = -index * 40，所以 index = -offset / 40
+                const centerIndex = Math.round(-offset / 40);
+                const maxIndex = items.children.length - 1;
+                const clampedIndex = Math.max(0, Math.min(maxIndex, centerIndex));
+                
+                const itemsArray = Array.from(items.children);
+                itemsArray.forEach((item, index) => {
+                    item.classList.remove('selected');
+                    if (index === clampedIndex) {
+                        item.classList.add('selected');
+                        callback(item.dataset.value);
+                    }
+                });
+                
+                // 确保偏移量在有效范围内，并对齐到正确的值
+                const alignedOffset = -clampedIndex * 40;
+                const maxOffset = 0; // 第一个item在选中区域
+                const minOffset = -maxIndex * 40; // 最后一个item在选中区域
+                offset = Math.max(minOffset, Math.min(maxOffset, alignedOffset));
+                items.style.transform = `translateY(${offset}px)`;
+            }
+            
+            wheel.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                startY = e.clientY;
+            });
+            
+            wheel.addEventListener('touchstart', (e) => {
+                isDragging = true;
+                startY = e.touches[0].clientY;
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                currentY = e.clientY;
+                offset += (currentY - startY) * 0.5;
+                const maxOffset = 0; // 第一个item在选中区域
+                const minOffset = -(items.children.length - 1) * 40; // 最后一个item在选中区域
+                offset = Math.max(minOffset, Math.min(maxOffset, offset));
+                updatePosition();
+                startY = currentY;
+            });
+            
+            document.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                currentY = e.touches[0].clientY;
+                offset += (currentY - startY) * 0.5;
+                const maxOffset = 0; // 第一个item在选中区域
+                const minOffset = -(items.children.length - 1) * 40; // 最后一个item在选中区域
+                offset = Math.max(minOffset, Math.min(maxOffset, offset));
+                updatePosition();
+                startY = currentY;
+            });
+            
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    const centerIndex = Math.round(-offset / 40);
+                    const maxIndex = items.children.length - 1;
+                    const clampedIndex = Math.max(0, Math.min(maxIndex, centerIndex));
+                    offset = -clampedIndex * 40;
+                    updatePosition();
+                }
+            });
+            
+            document.addEventListener('touchend', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    const centerIndex = Math.round(-offset / 40);
+                    const maxIndex = items.children.length - 1;
+                    const clampedIndex = Math.max(0, Math.min(maxIndex, centerIndex));
+                    offset = -clampedIndex * 40;
+                    updatePosition();
+                }
+            });
+            
+            // 点击选择
+            items.addEventListener('click', (e) => {
+                if (e.target.classList.contains('date-wheel-item')) {
+                    const index = Array.from(items.children).indexOf(e.target);
+                    offset = -index * 40;
+                    updatePosition();
+                }
+            });
+        }
+        
+        function updateSelectedItems() {
+            const wheels = ['year-wheel', 'month-wheel', 'day-wheel'];
+            const values = [selectedYear, selectedMonth, selectedDay];
+            
+            wheels.forEach((wheelId, idx) => {
+                const items = document.getElementById(wheelId).querySelector('.date-wheel-items');
+                const itemsArray = Array.from(items.children);
+                itemsArray.forEach((item, index) => {
+                    item.classList.remove('selected');
+                    if (parseInt(item.dataset.value) === values[idx]) {
+                        item.classList.add('selected');
+                        // 计算偏移量：-index * 40，使选中项的顶部在选中区域顶部（60px）
+                        // 由于padding-top: 60px，第一个item（index 0）的顶部在60px，中心在80px（选中区域中心）
+                        const offset = -index * 40;
+                        items.style.transform = `translateY(${offset}px)`;
+                    }
+                });
+            });
+        }
+        
+
+        // [修改] 更新日期检查函数，添加保存返程日期的逻辑
+        function checkDateAndUpdate() {
+            if (!selectedYear || !selectedMonth || !selectedDay) return;
+
+            const durationLabel = document.getElementById('trip-duration-label');
+            const arrowBtn = document.getElementById('date-arrow-btn');
+
+            try {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const returnDate = new Date(selectedYear, selectedMonth - 1, selectedDay);
+
+                if (returnDate < today) {
+                    durationLabel.textContent = '请选择一个未来的日期';
+                    durationLabel.classList.add('text-red-500');
+                    if (arrowBtn) {
+                        arrowBtn.classList.add('opacity-50');
+                    }
+                    return;
+                }
+
+                durationLabel.classList.remove('text-red-500');
+                const diffTime = Math.abs(returnDate - today);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                durationLabel.textContent = `阿布扎比的旅程，大约 ${diffDays} 天`;
+
+                // [新增] 保存格式化后的返程日期
+                const formattedDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+                window.returnDate = formattedDate;
+
+                if (arrowBtn) {
+                    arrowBtn.classList.remove('opacity-50');
+                }
+            } catch (e) {
+                durationLabel.textContent = '日期格式无效';
+                durationLabel.classList.add('text-red-500');
+                if (arrowBtn) {
+                    arrowBtn.classList.add('opacity-50');
+                }
+            }
+        }
+
+        // [修改] JS: 点击箭头后跳转到下一步（适配滚轮选择器）
+        function goToNextStepAfterDate() {
+            const arrowBtn = document.getElementById('date-arrow-btn');
+            
+            // 检查是否已选择日期
+            if (!selectedYear || !selectedMonth || !selectedDay) {
+                return;
+            }
+            
+            // 检查箭头是否可用（不应该被禁用）
+            if (arrowBtn && arrowBtn.classList.contains('opacity-50')) {
+                return;
+            }
+            
+            // 跳转到下一步（定制卡号）
+            showSubStep(11);
+        }
+
+        // [修改] 卡号更新函数 - 只允许输入数字
+        function updateCardNumber(input) {
+            const display = document.getElementById('card-number-display');
+
+            // 只保留数字，并限制为8位
+            let value = input.value.replace(/\D/g, ''); // 只保留数字
+            if (value.length > 8) value = value.substring(0, 8);
+
+            // 更新输入框的值（确保只显示数字）
+            input.value = value;
+
+            // 保存卡号后缀
+            window.customCardSuffix = value;
+
+            // 格式化显示 - 显示为后8位，前缀用*号隐藏
+            let formattedValue = '';
+            if (value.length > 4) {
+                formattedValue = value.substring(0, 4) + ' ' + value.substring(4);
+            } else {
+                formattedValue = value;
+            }
+
+            // 显示格式：**** **** 1234 5678
+            display.textContent = '**** **** ' + formattedValue;
+        }
+
+        // [新增] 继续到最终步骤（处理卡号）
+        function proceedToFinalStep() {
+            // 如果没有输入卡号，生成随机8位数字
+            if (!window.customCardSuffix || window.customCardSuffix.length === 0) {
+                window.customCardSuffix = generateRandomCardSuffix();
+                console.log('生成随机卡号后缀:', window.customCardSuffix);
+            } else if (window.customCardSuffix.length !== 8) {
+                alert('卡号后缀必须是8位数字，或留空自动生成');
+                return;
+            }
+
+            // 更新卡号显示
+            const display = document.getElementById('card-number-display');
+            const value = window.customCardSuffix;
+            let formattedValue = '';
+            if (value.length > 4) {
+                formattedValue = `**** **** ${value.substring(0, 4)} ${value.substring(4)}`;
+            } else {
+                formattedValue = `**** **** XXXX ${value}`;
+            }
+            display.textContent = formattedValue;
+
+            // 进入下一步（开卡成功，步骤12）
+            showSubStep(12);
+        }
+
+        // [新增] 确认用户名
+        function confirmUsername() {
+            const usernameInput = document.getElementById('username-input');
+            const username = usernameInput.value.trim();
+            const errorText = document.getElementById('username-error');
+
+            if (!username) {
+                errorText.textContent = '请输入用户名';
+                errorText.classList.remove('hidden');
+                return;
+            }
+
+            if (username.length < 2) {
+                errorText.textContent = '用户名至少2个字符';
+                errorText.classList.remove('hidden');
+                return;
+            }
+
+            // 保存用户名
+            window.username = username;
+            errorText.classList.add('hidden');
+
+            // 进入下一步（授信协议，步骤14）
+            showSubStep(14);
+        }
+
+        // [新增] 生成随机8位卡号后缀
+        function generateRandomCardSuffix() {
+            let suffix = '';
+            for (let i = 0; i < 8; i++) {
+                suffix += Math.floor(Math.random() * 10);
+            }
+            return suffix;
+        }
+
+        // [修改] 注册完成函数
+        function completeRegistration() {
+            // 检查是否同意协议
+            const agreeCheckbox = document.getElementById('agree-terms');
+            if (!agreeCheckbox.checked) {
+                alert('请先阅读并同意授信协议');
+                return;
+            }
+
+            // 确保有卡号后缀（应该已经在上一步生成或输入）
+            if (!window.customCardSuffix || window.customCardSuffix.length !== 8) {
+                window.customCardSuffix = generateRandomCardSuffix();
+            }
+
+            // 收集注册数据
+            const registrationData = {
+                username: window.username,  // 添加用户名
+                card_suffix: window.customCardSuffix,
+                expected_return_day: window.returnDate,
+                face_image: faceIDImageBase64  // 添加Face ID数据
+            };
+
+            // 显示加载状态
+            const submitBtn = document.querySelector('#sub-step-area .confirm-btn');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = '注册中...';
+            submitBtn.disabled = true;
+
+            // 发送注册请求
+            fetch('/api/complete_registration', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(registrationData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 注册成功，跳转到主页
+                    window.location.href = '/';
+                } else {
+                    alert('注册失败: ' + data.message);
+                    // 恢复按钮状态
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('注册请求失败:', error);
+                alert('网络错误，请重试');
+                // 恢复按钮状态
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            });
+        }
+
+        // ==================== Face ID 功能 ====================
+        let faceIDStream = null;
+        let faceIDCaptured = false;
+        let faceIDImageBase64 = null;
+
+        // 启动摄像头
+        async function startFaceIDCamera() {
+            try {
+                const video = document.getElementById('faceid-video');
+                const iconContainer = document.getElementById('faceid-icon-container');
+                const startBtn = document.getElementById('start-camera-btn');
+                const captureBtn = document.getElementById('capture-face-btn');
+                const statusText = document.getElementById('faceid-status');
+
+                // 请求摄像头权限
+                faceIDStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: 640,
+                        height: 480,
+                        facingMode: 'user'
+                    }
+                });
+
+                video.srcObject = faceIDStream;
+                video.classList.remove('hidden');
+                iconContainer.classList.add('hidden');
+                startBtn.classList.add('hidden');
+                captureBtn.classList.remove('hidden');
+                statusText.textContent = '📸 请正对摄像头，保持光线充足';
+                statusText.className = 'text-base mt-3 text-blue-600 font-medium';
+
+            } catch (error) {
+                const statusText = document.getElementById('faceid-status');
+                statusText.textContent = '❌ 无法访问摄像头，请检查权限';
+                statusText.className = 'text-base mt-3 text-red-600 font-medium';
+            }
+        }
+
+        // 拍照并录入Face ID
+        async function captureFaceID() {
+            const video = document.getElementById('faceid-video');
+            const captureBtn = document.getElementById('capture-face-btn');
+            const statusText = document.getElementById('faceid-status');
+
+            // 创建canvas拍照
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0);
+
+            // 转换为Base64
+            faceIDImageBase64 = canvas.toDataURL('image/jpeg').split(',')[1];
+
+            // 显示处理中
+            statusText.textContent = '⏳ 正在识别人脸...';
+            statusText.className = 'text-base mt-3 text-blue-600 font-medium';
+            captureBtn.disabled = true;
+
+            // 暂时存储，等注册时一起提交
+            faceIDCaptured = true;
+
+            // 关闭摄像头
+            if (faceIDStream) {
+                faceIDStream.getTracks().forEach(track => track.stop());
+                video.classList.add('hidden');
+            }
+
+            // 显示成功
+            const iconContainer = document.getElementById('faceid-icon-container');
+            iconContainer.classList.remove('hidden');
+            iconContainer.innerHTML = `
+                <img src="/static/faceid_join.gif" alt="Face ID 成功" class="w-24 h-24 object-contain rounded-3xl"
+                     onerror="this.src='https://placehold.co/96x96/4ade80/ffffff?text=✓'; this.onerror=null;">
+            `;
+
+            statusText.textContent = '✅ Face ID 录入成功！';
+            statusText.className = 'text-base mt-3 text-green-600 font-semibold';
+            captureBtn.classList.add('hidden');
+
+            // 2秒后自动进入下一步
+            setTimeout(() => {
+                showSubStep(1);
+            }, 2000);
+        }
+
+    </script>
+</body>
+</html>
