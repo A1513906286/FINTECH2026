@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{{ user.name }}'s Wallet</title>
+    <style>
+        /* [未修改] 动画 */
+        @keyframes avatar-gradient {
+            0% {stop-color: #84fab0;} 50% {stop-color: #8fd3f4;} 100% {stop-color: #84fab0;}
+        }
+        @keyframes scroll-left {
+            0% { transform: translateX(300px); } 100% { transform: translateX(-100%); }
+        }
+        @keyframes move-gradient {
+            0%   { background-position: 0% 50%; } 50%  { background-position: 100% 50%; } 100% { background-position: 0% 50%; }
+        }
+        @keyframes card-exit {
+            0% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(0.5); }
+        }
+        
+        /* --- 1. [已修改] 基本和App框架样式 --- */
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
+            background-color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #1c1c1e;
+        }
+        .app-container {
+            width: 390px; max-width: 100%; height: 844px;
+            background-color: #e9e9ef; 
+            border-radius: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            display: flex; flex-direction: column;
+            position: relative; padding: 0;
+            box-sizing: border-box;
+            transition: background-color 0.5s ease-in-out; 
+        }
+        .activity-view-active.app-container {
+            background-image: linear-gradient(90deg, #80D0C7, #0093E9, #0061FF, #0093E9, #80D0C7);
+            background-size: 250% 100%;
+            animation: move-gradient 5s ease-in-out infinite;
+        }
+
+        /* --- 1.1. [已修改] iOS 状态栏 (灵动岛) --- */
+        .ios-status-bar {
+            width: 100%; height: 44px; display: flex;
+            justify-content: space-between; align-items: center;
+            padding: 0 24px; box-sizing: border-box; background-color: transparent; 
+            color: #1c1c1e; position: absolute; top: 0; left: 0;
+            z-index: 10; transition: color 0.5s ease-in-out;
+        }
+        .activity-view-active .ios-status-bar { color: #ffffff; }
+        .status-bar-time { font-size: 15px; font-weight: 600; }
+        .status-bar-icons { display: flex; align-items: center; gap: 5px; }
+        .status-bar-icons .icon { width: 18px; height: 18px; stroke-width: 1.5; }
+        .icon-battery { width: 24px; height: 24px; stroke-width: 1.5; }
+        .dynamic-island-notch {
+            position: absolute; top: 8px; left: 50%;
+            transform: translateX(-50%); width: 120px; height: 30px; 
+            background-color: #000; border-radius: 20px; z-index: 9;
+        }
+        
+        /* (新) 最终微调 R1: 恢复底部内边距以确保内容可以完全滚动，移除强制吸附 */
+        .app-content {
+            flex-grow: 1; overflow-y: auto; padding: 10px 16px 60px 16px;
+            margin-top: 44px; margin-bottom: 0;
+            /* scroll-snap-type: y mandatory; 已移除，避免强制滚动吸附 */
+            overscroll-behavior-y: contain; scroll-behavior: smooth;
+        }
+        .icon {
+            width: 24px; height: 24px; stroke-width: 1.5;
+            fill: none; stroke: currentColor;
+            stroke-linecap: round; stroke-linejoin: round;
+        }
+
+        /* --- 1.2. [未修改] iOS Home 指示器 --- */
+        .home-indicator {
+            width: 134px; height: 5px; background-color: #1c1c1e;
+            border-radius: 100px; position: absolute; bottom: 10px;
+            left: 50%; transform: translateX(-50%); z-index: 12;
+        }
+
+        /* --- 2. [未修改] 顶部栏 --- */
+        .top-bar {
+            display: flex; justify-content: space-between;
+            align-items: center; padding: 5px 0;
+            /* scroll-snap-align: start; 已移除 */
+        }
+        .user-greeting { display: flex; align-items: center; gap: 12px; }
+        .header-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: none; }
+        .top-bar h1 { font-size: 28px; font-weight: 700; margin: 0; color: #1c1c1e; }
+        .top-bar-icons { display: flex; gap: 16px; }
+        .top-bar-icons .icon { color: #333; cursor: pointer; }
+
+        /* 设置弹窗 */
+        .settings-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .settings-overlay.active {
+            display: flex;
+        }
+
+        /* 探索阿布扎比 - 适配 trends-zone 风格 */
+        .trends-zone .explore-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .trends-zone .explore-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            text-decoration: none;
+            color: #f0f0f0;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .trends-zone .explore-item:hover {
+            background: rgba(255, 255, 255, 0.45);
+        }
+        .trends-zone .explore-item-icon {
+            font-size: 24px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        .trends-zone .explore-item-content {
+            flex: 1;
+        }
+        .trends-zone .explore-item-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 3px;
+        }
+        .trends-zone .explore-item-description {
+            font-size: 11px;
+            color: #f0f0f0;
+            opacity: 0.8;
+            line-height: 1.3;
+        }
+        .trends-zone .explore-item-arrow {
+            width: 16px;
+            height: 16px;
+            color: #ffffff;
+            flex-shrink: 0;
+        }
+        .trends-zone .explore-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #fff;
+        }
+        .trends-zone .loading-spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .trends-zone .explore-loading p {
+            margin-top: 10px;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+
+        .settings-modal {
+            background-color: #ffffff;
+            border-radius: 20px;
+            width: 340px;
+            max-width: 90%;
+            padding: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .settings-header h2 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            color: #1c1c1e;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .settings-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .settings-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px;
+            background-color: #f5f5f7;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .settings-item:hover {
+            background-color: #e8e8ea;
+        }
+        .settings-item .icon {
+            width: 20px;
+            height: 20px;
+            color: #333;
+        }
+        .settings-item span {
+            font-size: 16px;
+            font-weight: 500;
+            color: #1c1c1e;
+        }
+        .settings-item.logout {
+            background-color: #fee;
+            color: #e53e3e;
+        }
+        .settings-item.logout:hover {
+            background-color: #fdd;
+        }
+        .settings-item.logout .icon,
+        .settings-item.logout span {
+            color: #e53e3e;
+        }
+
+        /* 输入弹窗 */
+        .input-modal {
+            background-color: #ffffff;
+            border-radius: 20px;
+            width: 340px;
+            max-width: 90%;
+            padding: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        .input-modal h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0 0 16px 0;
+            color: #1c1c1e;
+        }
+        .input-modal input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 16px;
+            box-sizing: border-box;
+        }
+        .input-modal-buttons {
+            display: flex;
+            gap: 12px;
+        }
+        .input-modal-buttons button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .input-modal-buttons button:hover {
+            opacity: 0.8;
+        }
+        .btn-cancel {
+            background-color: #f5f5f7;
+            color: #333;
+        }
+        .btn-confirm {
+            background-color: #22c55e;
+            color: white;
+        }
+
+        /* --- 3. [未修改] 对话框 --- */
+        .dialogue-box {
+            background-color: #ffffff; border-radius: 20px; padding: 8px 14px;
+            margin-top: 12px; display: flex; align-items: center; gap: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); overflow: hidden; 
+        }
+        .night-light-icon { color: #f39c12; filter: drop-shadow(0 0 8px rgba(243, 156, 18, 0.7)); flex-shrink: 0; }
+        .scroll-container { flex-grow: 1; white-space: nowrap; overflow: hidden; }
+        .scroll-text { display: inline-block; font-size: 13px; font-weight: 500; color: #333; }
+        .scroll-text.scroll-long { animation: scroll-left 15s linear infinite; will-change: transform; }
+
+        /* --- 4. [未修改] 信用卡 --- */
+        .credit-card {
+            background: linear-gradient(145deg, #0d2a4f 0%, #1a3c5d 30%, #3a608a 100%);
+            color: white; border-radius: 20px; padding: 20px; margin-top: 16px;
+            height: 210px; position: relative;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+            box-sizing: border-box; overflow: hidden;
+        }
+        .credit-card::before {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient( 45deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.05) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0.05) 70%, rgba(255, 255, 255, 0) 100% );
+            transform: rotate(30deg); pointer-events: none; z-index: 2;
+        }
+        .camel-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 0; opacity: 0.12; color: #ffffff; }
+        .card-number, .card-virtual-credit, .card-visa, .balance-section { position: absolute; z-index: 3; }
+        .card-region { position: absolute; top: 30px; left: 20px; font-size: 10px; font-weight: 300; color: rgba(255, 255, 255, 0.6); text-transform: uppercase; letter-spacing: 1px; z-index: 3; }
+        .card-number { top: 50px; left: 20px; font-family: Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 18px; font-weight: 500; letter-spacing: 2px; color: #f0f0f0; }
+        .card-virtual-credit { bottom: 20px; left: 20px; font-size: 14px; font-weight: 300; opacity: 0.8; color: rgba(255, 255, 255, 0.7); }
+        .card-visa { bottom: 20px; right: 20px; font-size: 24px; font-weight: bold; font-style: italic; color: #f0f0f0; }
+        .balance-section { top: 90px; left: 20px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+        .balance-section .balance-label { font-size: 14px; font-weight: 400; color: rgba(255, 255, 255, 0.6); }
+        .balance-line { display: flex; align-items: center; gap: 10px; }
+        .balance-amount, .balance-hidden { font-size: 22px; font-weight: 600; color: #fff; }
+        .balance-amount { display: none; }
+        .eye-icon { cursor: pointer; color: rgba(255, 255, 255, 0.7); }
+        #eye-open { display: none; }
+
+        /* --- 5. [已修改] 功能框 --- */
+        .info-boxes { 
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px;
+            /* (新) 最终微调 R1: 为第一屏添加底部间距 */
+            margin-bottom: 40px;
+        }
+        .box {
+            background-color: #ffffff; border-radius: 16px; padding: 14px; box-sizing: border-box;
+            min-height: 120px; display: flex; flex-direction: column;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; z-index: 1;
+        }
+        .box h3 { font-size: 15px; margin: 0; color: #1c1c1e; position: relative; z-index: 2; }
+        .box-watermark { position: absolute; opacity: 0.08; z-index: 0; color: #1c1c1e; }
+        .box-watermark.bill { bottom: -15px; right: -10px; }
+        .box-watermark.coins { top: 5px; right: 5px; opacity: 0.1; transform: rotate(15deg); }
+        .box-watermark.arrow { bottom: 5px; right: 5px; opacity: 0.08; }
+        .box-rate .rate-value { font-size: 13px; color: #333; margin: 4px 0 0 0; position: relative; z-index: 2; }
+        .chart-placeholder { width: 100%; height: 50px; margin-top: auto; position: relative; z-index: 2; }
+        .chart-placeholder svg { width: 100%; height: 100%; overflow: visible; }
+        .chart-label { position: absolute; bottom: 5px; right: 15%; transform: translateX(50%); font-size: 10px; color: #888; }
+        .box-pay { justify-content: flex-start; }
+        .box-pay .pay-option { font-size: 14px; color: #333; font-weight: 500; display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 2; margin-top: 6px; }
+        .box-pay .pay-option:first-of-type { margin-top: auto; }
+        .box-pay .pay-option .icon { width: 16px; height: 16px; color: #555; }
+        .box-pay h3 { font-weight: 700; }
+        .box-bill, .box-limit-increase { justify-content: flex-start; }
+        .recent-spend { font-size: 13px; color: #333; margin: 2px 0 0 0; position: relative; z-index: 2; }
+        .amount-footer { margin-top: auto; position: relative; z-index: 2; }
+        .amount-large { font-size: 22px; font-weight: 600; line-height: 1; color: #129743; }
+        .amount-unit { font-size: 13px; color: #333; margin-left: 3px; }
+        .amount-rmb { font-size: 13px; color: #555; margin: 2px 0 0 0; }
+        .approx-symbol { font-size: 16px; }
+    
+        /* --- 6. [已修改] 创意活动区域 (沉浸式) --- */
+        .activity-section {
+            position: relative; margin-top: 20px; height: 160px;
+            margin-left: -16px; margin-right: -16px;
+            z-index: 5; /* scroll-snap-align: start; 已移除 */
+        }
+        .activity-background-curve {
+            position: absolute; top: 25px; left: 0;
+            width: 100%; height: 100%; z-index: 1;
+            background-image: linear-gradient(90deg, #D4BFA3, #E8D6BF 40%, #1fb455 100%);
+            background-size: 100% 100%;
+            clip-path: url(#activity-curve-clipper);
+            transition: background-image 0.5s ease-in-out, opacity 0.5s ease-in-out;
+            animation: none; 
+        }
+        .activity-view-active .activity-background-curve {
+            background-image: linear-gradient(90deg, #80D0C7, #0093E9, #0061FF, #0093E9, #80D0C7);
+            background-size: 250% 100%;
+            animation: move-gradient 5s ease-in-out infinite;
+            opacity: 0;
+        }
+        .activity-title { display: none; }
+        .activity-elements, .activity-location, .savings-box {
+            position: absolute; z-index: 2;
+            transition: transform 0.5s ease-in-out;
+        }
+        
+        /* (新) 最终微调 R3: 沉浸式下移 25px */
+        .activity-view-active .activity-elements,
+        .activity-view-active .activity-location,
+        .activity-view-active .savings-box {
+            transform: translateY(45px); /* 原为 15px, 现增加 10px */
+        }
+        
+        .activity-elements {
+            display: flex; align-items: flex-end; gap: 0; left: 20px; top: -60px; 
+        }
+        .combo-image { height: 150px; width: auto; object-fit: contain; }
+        .combo-video { height: 100px; width: auto; object-fit: contain; background: transparent; }
+        .activity-location {
+            z-index: 3; top: 90px; left: 20px; color: #ffffff; line-height: 1;
+        }
+        .location-in { font-size: 18px; font-weight: 400; opacity: 0.9; display: block; color: #ffffff; margin-right: 0; }
+        .location-city { font-size: 28px; font-weight: 700; }
+        .savings-box {
+            z-index: 4; top: 40px; right: 16px; 
+            background: rgba(255, 255, 255, 0.2); border-radius: 12px;
+            padding: 8px 12px; width: 120px; overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.3); backdrop-filter: blur(5px);
+        }
+        .savings-box-content { position: relative; z-index: 2; color: #fff; text-align: left; }
+        .savings-box-content p { font-size: 12px; margin: 0; opacity: 0.9; }
+        .savings-box-content h3 { font-size: 22px; margin: 4px 0; font-weight: 700; }
+        .savings-box-watermark {
+            position: absolute; bottom: px; right: -10px; width: 60px; height: 60px;
+            z-index: 1; color: #ded9ba; opacity: 0.3; 
+        }
+
+        /* --- 7. [已修改] 活动详情页内容 (沉浸式) --- */
+        .activity-details {
+            position: relative; z-index: 3; padding-top: 15px;
+            margin-top: -1px; margin-left: -16px; margin-right: -16px;
+            transition: background-color 0.5s ease-in-out;
+            display: flex; flex-direction: column;
+            flex-grow: 1; min-height: 450px;
+            
+            /* (新) 最终微调 R1: 底部填充 - 让此模块"渗出"到父级的 padding 区域 */
+            margin-bottom: -40px;
+        }
+        .activity-view-active .activity-details {
+            background-image: none;
+            background-color: transparent;
+        }
+        
+        /* (新) 最终微调 R1: 底部填充 - 为内容区添加真实
+        的底部内边距 */
+        .details-content-wrapper {
+            background-image: none;
+            background-color: transparent;
+            border-top-left-radius: 25px;
+            border-top-right-radius: 25px;
+            padding: 20px 16px 60px 16px; /* 原 padding-bottom: 20px, 现增加 40px */
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            flex-grow: 1; 
+        }
+
+        /* --- 8. (新) 盲盒模块 --- */
+        .blind-box-zone {
+            background: linear-gradient(160deg, #4e342e 0%, #3e2723 100%);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2), inset 0 2px 4px rgba(255, 255, 255, 0.1);
+            border: 1px solid #5d4037;
+            display: grid; 
+            grid-template-columns: auto 1fr;
+            grid-template-rows: auto 1fr;
+            gap: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+        .blind-box-header {
+            grid-column: 1 / -1; display: flex;
+            justify-content: space-between; align-items: flex-start; padding: 0 4px;
+        }
+        .wecoin-returns { color: #f5f5f5; }
+        .wecoin-returns h4 {
+            font-size: 14px; font-weight: 700; margin: 0 0 4px 0;
+            text-transform: uppercase; font-style: italic; opacity: 0.8;
+        }
+        .wecoin-returns p {
+            font-size: 20px; font-weight: 600; margin: 0;
+            display: flex; align-items: center; gap: 6px; color: #FFD700;
+        }
+        .wecoin-returns .icon { width: 22px; height: 22px; stroke-width: 2; }
+        .redeem-history-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px); border-radius: 10px; padding: 6px 10px;
+            color: #fff; font-size: 12px; font-weight: 500;
+            cursor: pointer; margin-right: 60px;
+            transition: background-color 0.2s ease;
+            margin-top: 5px; /* 下移 5px */
+        }
+        .redeem-history-btn:hover { background: rgba(255, 255, 255, 0.3); }
+
+        .pull-rope-container {
+            position: absolute; top: 0px; right: 16px;
+            display: flex; flex-direction: column; align-items: center;
+            cursor: pointer; z-index: 10;
+        }
+        .pull-rope-line {
+            width: 3px; height: 40px; background: #c7a47a;
+            border-radius: 0 0 3px 3px; box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+        }
+        .pull-rope-handle {
+            width: 50px; background: #d4b48c; border-radius: 8px;
+            padding: 4px 6px; box-shadow: 0 3px 5px rgba(0,0,0,0.3);
+            border: 1px solid #a37f59; display: flex; align-items: center;
+            justify-content: center; gap: 4px; color: #4e342e;
+            font-size: 12px; font-weight: 600; transition: transform 0.1s ease;
+        }
+        .pull-rope-handle .icon { width: 14px; height: 14px; stroke-width: 2.5; }
+        .pull-rope-container.is-pulling .pull-rope-line {
+            transform-origin: top; animation: pull-rope-stretch 0.5s ease-out;
+        }
+        .pull-rope-container.is-pulling .pull-rope-handle { transform: translateY(10px); }
+        @keyframes pull-rope-stretch {
+            0% { transform: scaleY(1); } 40% { transform: scaleY(1.4); }
+            80% { transform: scaleY(0.9); } 100% { transform: scaleY(1); }
+        }
+
+        .blind-box-sidebar {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 8px; padding-top: 20px;
+        }
+        .redeem-card {
+            width: 50px; height: 70px;
+            background: linear-gradient(145deg, #a9c9ff 0%, #ffbbec 100%);
+            border-radius: 8px; display: flex; justify-content: center;
+            align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .redeem-card .icon { color: #fff; width: 30px; height: 30px; stroke-width: 1.5; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3)); }
+        .redeem-text { font-size: 12px; color: #e0e0e0; text-align: center; margin: 0; font-weight: 500; }
+        .redeem-count { font-size: 14px; font-weight: 700; color: #fff; margin: 0; }
+        .coupon-pack-btn {
+            display: flex; flex-direction: column; align-items: center;
+            gap: 6px; margin-top: 15px; cursor: pointer;
+        }
+        .coupon-pack-btn .icon {
+            width: 36px; height: 36px; color: #f39c12;
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.2));
+        }
+        .coupon-pack-btn span { font-size: 12px; font-weight: 500; color: #e0e0e0; }
+        .game-rules-link {
+            font-size: 11px; color: #aaa; border-bottom: 1px solid #777;
+            padding-bottom: 2px; margin-top: 10px; cursor: pointer; display: inline-block;
+        }
+        .game-rules-details {
+            grid-column: 1 / -1; display: none; 
+            background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px;
+        }
+        .game-rules-details.is-visible { display: block; }
+        .game-rules-details p { font-size: 12px; color: #e0e0e0; line-height: 1.5; margin: 0; }
+
+        .blind-box-cabinet {
+            background: #3e2723; border-radius: 12px; padding: 8px; 
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px; 
+            height: 250px; overflow: hidden;
+            box-shadow: inset 0 3px 5px rgba(0,0,0,0.3);
+        }
+        
+        .blind-box-cabinet.is-shuffling .card-inner {
+            animation: card-exit 0.4s ease-out forwards;
+        }
+
+        .blind-box-cell {
+            width: 100%;
+            aspect-ratio: 1 / 1.2;
+            background-color: transparent;
+            perspective: 1000px;
+            cursor: pointer;
+        }
+        .card-inner {
+            position: relative;
+            width: 100%; height: 100%;
+            transition: transform 0.6s, opacity 0.4s, scale 0.4s;
+            transform-style: preserve-3d;
+        }
+        .card-inner.is-flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%; height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            border-radius: 10px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        
+        /* (新) 最终微调 R2: 移除价格相关样式 */
+        .card-front {
+            background: linear-gradient(145deg, #795548, #5d4037);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: center; /* 原为 space-between */
+            align-items: center;
+            font-size: 40px;
+            color: rgba(255, 255, 255, 0.2);
+            /* padding: 20px 0; 已移除 */
+        }
+        .card-back {
+            background: linear-gradient(145deg, #a88a7d, #8d736a);
+            transform: rotateY(180deg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            color: white;
+        }
+        .card-back h5 {
+            font-size: 16px;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            color: #fff;
+        }
+        .card-back p {
+            font-size: 13px;
+            margin: 0;
+            color: #f0f0f0;
+        }
+        
+        /* (新) 最终微调 R2: 移除卡片价格样式 */
+        /* .card-price { ... 已移除 ... } */
+        
+        .card-front.is-star-card {
+            background: linear-gradient(145deg, #4a90e2, #50e3c2);
+            color: #ffd700;
+        }
+        .card-front.is-star-card .icon {
+            width: 50px; height: 50px;
+            stroke-width: 1.5;
+            fill: #ffd700;
+            filter: drop-shadow(0 0 10px #ffd700);
+            /* margin-top: 10px; 已移除 */
+        }
+        
+        .blind-box-cell.is-partial .card-inner {
+            opacity: 0.6;
+        }
+
+        /* --- 10. (新) 探索阿布扎比 (毛玻璃风格) --- */
+        .trends-zone {
+            background: rgba(255, 255, 255, 0.2); 
+            border-radius: 16px; 
+            padding: 16px; 
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            gap: 10px; 
+            flex-grow: 1;
+            /* (新) 最终微调 R1: 移除底部 margin */
+            /* margin-bottom: 20px; 已移除 */
+        }
+        .zone-title {
+            display: flex; align-items: center;
+            justify-content: space-between; font-size: 20px; 
+            font-weight: 700; color: #ffffff; margin: 0;
+        }
+        .zone-title-left {
+            display: flex; align-items: center; gap: 10px;
+        }
+        .trends-zone .zone-title .icon { color: #ffffff; }
+        .powered-by-ai {
+            font-size: 10px; font-weight: 500; color: #fff;
+            opacity: 0.8; background: rgba(0,0,0,0.1);
+            padding: 2px 6px; border-radius: 4px;
+        }
+        .trend-card-link {
+            text-decoration: none;
+            display: block;
+        }
+        .trend-card {
+            display: flex; align-items: center; gap: 12px; 
+            background-color: rgba(255, 255, 255, 0.3);
+            border-radius: 12px; padding: 10px; 
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: background-color 0.2s ease;
+        }
+        .trend-card-link:hover .trend-card {
+            background-color: rgba(255, 255, 255, 0.45);
+        }
+        .platform-icon {
+            flex-shrink: 0; width: 36px; height: 36px;
+            border-radius: 8px; display: flex;
+            justify-content: center; align-items: center;
+        }
+        .platform-icon .icon { width: 22px; height: 22px; color: #ffffff; }
+        .platform-icon.p-xiaohongshu { background-color: #E62E2E; }
+        .platform-icon.p-sale { background-color: #2ECC71; }
+        .platform-icon.p-hotel { background-color: #3498DB; }
+        .trend-card p {
+            margin: 0; font-size: 13px; color: #f0f0f0;
+            line-height: 1.5; flex-grow: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .trend-card .icon-arrow {
+            width: 16px; height: 16px;
+            color: #f0f0f0; flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+    <svg width="0" height="0" style="position:absolute; z-index: -1;">
+      <defs>
+        <clipPath id="activity-curve-clipper" clipPathUnits="objectBoundingBox">
+           <path d="M0,0 C0.25,-0.068 0.75,0.113 1,0 L1,1 L0,1 Z" />
+        </clipPath>
+      </defs>
+    </svg>
+
+    <svg width="0" height="0" style="position:absolute; display: none;">
+        <symbol id="icon-spend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></symbol>
+        <symbol id="icon-upgrade" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21v-13a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v13"></path><path d="M13 13H5v8h8v-8z"></path><path d="M19 13h-2v8h2v-8z"></path><path d="M11 13V5"></path><path d="M7 5v4"></path><path d="M15 5v4"></path></symbol>
+        <symbol id="icon-flight" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></symbol>
+        <symbol id="icon-ticket" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"> <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path><path d="M3 21v-2a4 4 0 0 1 3-3.87"></path><path d="M8 3.13a4 4 0 0 0 0 7.75"></path><path d="M12 15l.01 0"></path><path d="M8 15l.01 0"></path><path d="M16 15l.01 0"></path><path d="M9 12v-2a3 3 0 0 1 3-3h0a3 3 0 0 1 3 3v2"></path><path d="M12 17a3 3 0 0 0 3-3H9a3 3 0 0 0 3 3z"></path><path d="M14.2 11.8L16 10l-1.8-1.8"></path><path d="M7 10h4"></path><path d="M7 13h2"></path><path d="M17 13h.01"></path><path d="M16 6V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path><path d="M16 12H8"></path><path d="M12 4v4l2-2 2 2V4"></path></symbol>
+        <symbol id="icon-ferris-wheel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 2v8"></path><path d="M12 14v8"></path><path d="m18.36 18.36-5.66-5.66"></path><path d="m5.64 5.64 5.66 5.66"></path><path d="m20 12-8 0"></path><path d="m4 12 8 0"></path><path d="m18.36 5.64-5.66 5.66"></path><path d="m5.64 18.36 5.66-5.66"></path><path d="M12 22l-3-6 6 0-3 6z"></path></symbol>
+        <symbol id="icon-xiaohongshu" viewBox="0 0 24 24" fill="currentColor" stroke="none"> <path d="M21.32,8.85A10.15,10.15,0,0,0,12,2.05a10.15,10.15,0,0,0-9.32,6.8C1.52,12.35,2.15,16.5,5.32,19.4a10.1,10.1,0,0,0,13.36,0A10,10,0,0,0,21.32,8.85ZM12,12.75a3.3,3.3,0,0,1-3.3-3.3A3.3,3.3,0,0,1,12,6.15a3.3,3.3,0,0,1,3.3,3.3A3.3,3.3,0,0,1,12,12.75Zm4.8,3.9H7.2a6.6,6.6,0,0,1,9.6,0Z" /></symbol>
+        <symbol id="icon-sale-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></symbol>
+        <symbol id="icon-hotel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 22v-6.5m4 6.5v-6.5M12 12.5a2.5 2.5 0 0 1 2.5 2.5v7h-5v-7a2.5 2.5 0 0 1 2.5-2.5z"></path><path d="M21 10h-2.5a1.5 1.5 0 0 0-1.5 1.5V22h5V10z"></path><path d="M5.5 10H3v12h5V11.5A1.5 1.5 0 0 0 6.5 10h-1z"></path><path d="M12 2.5a1 1 0 0 1 1 1V10H11V3.5a1 1 0 0 1 1-1z"></path></symbol>
+        <symbol id="icon-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></symbol>
+        <symbol id="icon-coin-stack" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="7" ry="2.5"></ellipse><path d="M5 5v14a7 2.5 0 0 0 14 0V5"></path><path d="M5 12a7 2.5 0 0 0 14 0"></path><path d="M5 19a7 2.5 0 0 0 14 0"></path></symbol>
+        <symbol id="icon-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></symbol>
+        <symbol id="icon-mystery-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="16" height="16" rx="2"></rect><path d="M6 3v2"></path><path d="M10 3v2"></path><path d="M14 3v2"></path><path d="M10 11a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"></path><path d="M10 13v3a4 4 0 0 0 4 4h4"></path><path d="M18 17a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2h-2"></path></symbol>
+        <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></symbol>
+        <symbol id="icon-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+        </symbol>
+    </svg>
+
+
+    <div class="app-container" id="app-container">
+
+        <div class="dynamic-island-notch"></div>
+        <div class="ios-status-bar">
+            <span class="status-bar-time">9:41</span>
+            <div class="status-bar-icons">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><path d="M5.5 16.5v-3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1zm6 0v-6a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1zm6 0v-9a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1z"></path></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon icon-battery"><rect x="1" y="6" width="18" height="12" rx="2" ry="2" stroke="currentColor" fill="none" stroke-width="1.5"></rect><line x1="23" y1="10" x2="23" y2="14" stroke="currentColor" stroke-width="2"></line><rect x="3" y="8" width="14" height="8" rx="1" ry="1" fill="currentColor" stroke="none"></rect></svg>
+            </div>
+        </div>
+
+        <main class="app-content" id="app-content">
+            
+            <header class="top-bar" id="top-bar">
+                <div class="user-greeting">
+                    <svg class="header-avatar" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="avatar-grad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#84fab0"><animate attributeName="stop-color" values="#84fab0; #8fd3f4; #84fab0" dur="4s" repeatCount="indefinite"></animate></stop><stop offset="100%" style="stop-color:#8fd3f4"><animate attributeName="stop-color" values="#8fd3f4; #84fab0; #8fd3f4" dur="4s" repeatCount="indEfinite"></animate></stop></linearGradient></defs><circle cx="50" cy="50" r="50" fill="url(#avatar-grad)" /><text x="50" y="58" text-anchor="middle" font-size="50" font-weight="bold" fill="#fff">{{ user.avatar_initial }}</text></svg>
+                    <h1>Hi, {{ user.name }}</h1>
+                </div>
+                <div class="top-bar-icons">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><line x1="7" y1="12" x2="17" y2="12"></line></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon" onclick="openSettings()"><circle cx="12" cy="12" r="3"></circle><path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"></path></svg>
+                </div>
+            </header>
+
+            <div class="dialogue-box">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon night-light-icon"><path d="M12 2a9 9 0 0 0-9 9c0 4.968 4.032 9 9 9s9-4.032 9-9a9 9 0 0 0-9-9zm0 16a7 7 0 0 1-7-7c0-3.86 3.14-7 7-7s7 3.14 7 7a7 7 0 0 1-7 7z"></path><path d="M12 5a1 1 0 0 0-1 1v2a1 1 0 0 0 2 0V6a1 1 0 0 0-1-1zm-3.536 2.464a1 1 0 0 0 0 1.414l1.414 1.414a1 1 0 0 0 1.414-1.414L8.464 7.464a1 1 0 0 0-1.414 0zM5 11a1 1 0 0 0-1 1h-.001a1 1 0 0 0 0 2H5a1 1 0 0 0 0-2zm3.464 3.536a1 1 0 0 0-1.414 0l-1.414 1.414a1 1 0 0 0 1.414 1.414l1.414-1.414a1 1 0 0 0 0-1.414zM12 17a1 1 0 0 0-1 1v2a1 1 0 0 0 2 0v-2a1 1 0 0 0-1-1zm3.536-3.536a1 1 0 0 0 0-1.414l-1.414-1.414a1 1 0 0 0-1.414 1.414l1.414 1.414a1 1 0 0 0 1.414 0zm3-2.536a1 1 0 0 0-1-1h-2a1 1 0 0 0 0 2h2a1 1 0 0 0 1-1zm-3.536-5.05a1 1 0 0 0 1.414 0l1.414-1.414a1 1 0 0 0-1.414-1.414l-1.414 1.414a1 1 0 0 0 0 1.414z"></path></svg>
+                <div class="scroll-container">
+                    <span id="scroll-text-content" class="scroll-text">{% if messages and messages|length > 0 %}{{ messages[0].text }}{% else %}您的账单已生成，请及时查看{% endif %}</span>
+                </div>
+            </div>
+
+            <div class="credit-card">
+                <svg class="camel-watermark" width="120" height="120" viewBox="0 0 24 24" fill="currentColor"><path d="M21.78 12.35c.14-.52-.16-1.04-.68-1.18l-1.95-.51c-.6-.16-1.24.16-1.51.72l-.76 1.57c-.23.47-.76.7-1.27.53l-1.63-.55c-.51-.17-1.09.1-1.34.58l-1.07 2.1c-.3.59.1 1.3.73 1.45l2.25 .53c.63.15 1.2-.29 1.34-.92l.4-1.74c.1-.4.49-.6.88-.47l1.63.55c.39.13.8-.13.94-.52l1.01-2.16z M16.5 12c.83 0 1.5-.67 1.5-1.5S17.33 9 16.5 9s-1.5.67-1.5 1.5.67 1.5 1.5 1.5z M4.56 13.91c-.1-.22-.22-.43-.36-.63-.33-.47-.78-.85-1.3-.1-1.11 1.62-1.16 3.7.15 5.29l.09.1c.21.21.46.38.71.51.5.25 1.05.38 1.6.38.8 0 1.56-.25 2.21-.71.9-.64 1.58-1.58 1.9-2.66.39-1.27.3-2.68-.26-3.87-.1-.21-.21-.42-.33-.61l-.33-.51-.35-.51c-.1-.15-.22-.29-.35-.42-.41-.41-.98-.68-1.58-.68-.83 0-1.59.4-2.1.99z M9 10.5c0-.83-.67-1.5-1.5-1.5S6 9.67 6 10.5 6.67 12 7.5 12s1.5-.67 1.5-1.5z"></path></svg>
+                <span class="card-region">{{ user.region }}</span>
+                <span class="card-number">{{ user.card_number }}</span>
+                <span class="card-virtual-credit">Virtual Credit</span>
+                <span class="card-visa">VISA</span>
+                <div class="balance-section">
+                    <span class="balance-label">剩余额度</span>
+                    <div class="balance-line">
+                        <span id="balance-hidden" class="balance-hidden">••••••</span>
+                        <span id="balance-amount" class="balance-amount">¥ {{ user.balance }}</span>
+                        <svg id="eye-closed" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon eye-icon"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07l-5.72 5.72"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                        <svg id="eye-open" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon eye-icon"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-boxes" style="margin-bottom: 40px;">
+                <div class="box box-rate">
+                    <div><h3>当前汇率</h3><p class="rate-value">{{ rate.value }} {{ rate.pair }}</p></div>
+                    <div class="chart-placeholder">
+                        <svg viewBox="0 0 100 50" preserveAspectRatio="none"><polyline points="10,10 60,10 80,45" fill="none" stroke="#28a745" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="80" cy="45" r="2" fill="#00FF00" stroke="#fff" stroke-width="0.5" /></svg>
+                        <span class="chart-label">{{ rate.value }}</span>
+                    </div>
+                </div>
+                <div class="box box-bill">
+                    <svg class="box-watermark bill" xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" transform="rotate(-30)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    <h3>我的账单</h3><p class="recent-spend">最近一笔消费</p>
+                    <div class="amount-footer">
+                        <div><span class="amount-large">{{ bill.last_spend }}</span><span class="amount-unit">{{ bill.last_spend_currency }}</span></div>
+                        <p class="amount-rmb"><span class="approx-symbol">≈</span> {{ bill.converted_spend }} RMB</p>
+                    </div>
+                </div>
+                <div class="box box-pay">
+                    <svg class="box-watermark coins" xmlns="http://www.w3.org/2000/svg" width="50" height="50" viewBox="0 0 24 24" fill="currentColor" stroke="none" transform="rotate(15)"><ellipse cx="15" cy="18" rx="7" ry="2.5"></ellipse><ellipse cx="15" cy="15" rx="7" ry="2.5"></ellipse><ellipse cx="15" cy="12" rx="7" ry="2.5"></ellipse><ellipse cx="7" cy="20" rx="4" ry="2"></ellipse><ellipse cx="7" cy="18" rx="4" ry="2"></ellipse><ellipse cx="10" cy="21" rx="3" ry="1.5"></ellipse></svg>
+                    <h3><strong>提前还款</strong></h3>
+                    <div class="pay-option"><span>储蓄卡</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><path d="M9 18l6-6-6-6"></path></svg></div>
+                    <div class="pay-option"><span>分期付</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><path d="M9 18l6-6-6-6"></path></svg></div>
+                </div>
+                <div class="box box-limit-increase">
+                    <svg class="box-watermark arrow" xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+                    <h3>额度提升</h3><p class="recent-spend">当前额度</p>
+                    <div class="amount-footer">
+                        <div><span class="amount-large">{{ limit.current_limit }}</span><span class="amount-unit">RMB</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <section class="activity-section">
+                <div class="activity-background-curve"></div>
+                <div class="activity-elements">
+                    <img src="/static/{{ user.landmark_image }}" alt="Landmark" class="combo-image">
+                    <video class="combo-video" autoplay loop muted playsinline>
+                        <source src="/static/manghe.mp4" type="video/mp4">
+                        你的浏览器不支持视频标签。
+                    </video>
+                </div>
+                <div class="activity-location">
+                    <span class="location-in"> Find in</span>
+                    <span class="location-city">{{ user.location_city }}</span>
+                </div>
+                <div class="savings-box">
+                    <svg class="savings-box-watermark" viewBox="0 0 24 24" fill="currentColor"><ellipse cx="12" cy="18" rx="7" ry="2.5"></ellipse><ellipse cx="12" cy="15" rx="7" ry="2.5"></ellipse><ellipse cx="12" cy="12" rx="7" ry="2.5"></ellipse></svg>
+                    <div class="savings-box-content">
+                        <p>已经节省</p>
+                        <h3>{{ activity.saved_value }} {{ activity.saved_currency }}</h3>
+                        <p>≈ {{ activity.saved_rmb }} RMB</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="activity-details">
+                <div class="details-content-wrapper">
+                    
+                    <div class="blind-box-zone">
+                        <header class="blind-box-header">
+                            <div class="wecoin-returns">
+                                <h4><i>已返还 WECOIN</i></h4>
+                                <p>
+                                    <svg class="icon"><use xlink:href="#icon-coin-stack"></use></svg>
+                                    <span>x {{ user.wecoin }}</span>
+                                </p>
+                            </div>
+                            <div class="redeem-history-btn" id="redeem-history">兑换记录</div>
+                        </header>
+
+                        <div class="pull-rope-container" id="pull-rope">
+                            <div class="pull-rope-line"></div>
+                            <div class="pull-rope-handle">
+                                <svg class="icon"><use xlink:href="#icon-refresh"></use></svg>
+                                <span>10 coin</span>
+                            </div>
+                        </div>
+
+                        <div class="blind-box-sidebar">
+                            <div class="redeem-card">
+                                <svg class="icon"><use xlink:href="#icon-mystery-card"></use></svg>
+                            </div>
+                            <p class="redeem-text">今日可兑换</p>
+                            <!-- 这个数量需要更新 -->
+                            <p class="redeem-count">x{{ blind_box.redeem_today_count }}</p>
+                            
+                            <div class="coupon-pack-btn" id="coupon-pack">
+                                <svg class="icon"><use xlink:href="#icon-ticket"></use></svg>
+                                <span>我的奖券包</span>
+                            </div>
+
+                            <div class="game-rules-link" id="game-rules-toggle">
+                                <span>游戏规则</span>
+                            </div>
+                        </div>
+                        
+                        <div class="blind-box-cabinet" id="blind-box-cabinet">
+                            <!-- 卡片由JavaScript动态生成 -->
+                        </div>
+
+                        <div class="game-rules-details" id="game-rules-details">
+                            <p>{{ blind_box.game_rules | safe }}</p>
+                        </div>
+                    </div>
+
+                    <div class="trends-zone">
+                        <h3 class="zone-title">
+                            <div class="zone-title-left">
+                                <svg class="icon"><use xlink:href="#icon-ferris-wheel"></use></svg>
+                                探索阿布扎比
+                            </div>
+                            <span class="powered-by-ai">Powered by llama3</span>
+                        </h3>
+
+                        <div class="explore-list" id="explore-list">
+                            <div class="explore-loading">
+                                <div class="loading-spinner"></div>
+                                <p>正在加载推荐...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            </main>
+        
+        <div class="home-indicator"></div>
+
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div id="settings-overlay" class="settings-overlay" onclick="closeSettings(event)">
+        <div class="settings-modal" onclick="event.stopPropagation()">
+            <div class="settings-header">
+                <h2>设置</h2>
+                <button class="close-btn" onclick="closeSettings()">&times;</button>
+            </div>
+            <div class="settings-menu">
+                <div class="settings-item" onclick="openChangeUsername()">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    <span>修改用户名</span>
+                </div>
+                <div class="settings-item" onclick="openChangePassword()">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    <span>修改密码</span>
+                </div>
+                <div class="settings-item logout" onclick="logout()">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    <span>退出登录</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 输入弹窗（修改用户名/密码） -->
+    <div id="input-overlay" class="settings-overlay" onclick="closeInputModal(event)">
+        <div class="input-modal" onclick="event.stopPropagation()">
+            <h3 id="input-modal-title">修改用户名</h3>
+            <input type="text" id="input-modal-field" placeholder="请输入新用户名">
+            <div class="input-modal-buttons">
+                <button class="btn-cancel" onclick="closeInputModal()">取消</button>
+                <button class="btn-confirm" onclick="confirmInput()">确认</button>
+            </div>
+        </div>
+    </div>
+
+
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // --- [未修改] 余额显示 ---
+            const eyeClosed = document.getElementById('eye-closed');
+            const eyeOpen = document.getElementById('eye-open');
+            const balanceHidden = document.getElementById('balance-hidden');
+            const balanceAmount = document.getElementById('balance-amount');
+
+            function toggleBalance() {
+                const balance = "{{ user.balance | safe }}"; 
+                if (!balance) return; 
+                if (eyeClosed.style.display !== 'none') {
+                    eyeClosed.style.display = 'none';
+                    balanceHidden.style.display = 'none';
+                    eyeOpen.style.display = 'inline-block';
+                    balanceAmount.style.display = 'inline-block';
+                } else {
+                    eyeOpen.style.display = 'none';
+                    balanceAmount.style.display = 'none';
+                    eyeClosed.style.display = 'inline-block';
+                    balanceHidden.style.display = 'inline-block';
+                }
+            }
+            eyeClosed.addEventListener('click', toggleBalance);
+            eyeOpen.addEventListener('click', toggleBalance);
+
+            // --- [未修改] 滚动提醒 (Jinja2) ---
+            // --- [消息滚动显示与点击跳转逻辑] ---
+            const messagesElement = document.getElementById('messages-json');
+            const messages = messagesElement ? JSON.parse(messagesElement.textContent) : [];
+
+            let messageIndex = 0;
+            const scrollTextElement = document.getElementById('scroll-text-content');
+
+            // 更新滚动文字
+            function updateMessage() {
+                if (!messages || messages.length === 0) return;
+                const message = messages[messageIndex];
+
+                // 更新内容
+                scrollTextElement.textContent = message.text;
+
+                // 根据消息内容长度决定是否滚动
+                if (message.text.length > 20) {
+                    scrollTextElement.classList.add('scroll-long');
+                } else {
+                    scrollTextElement.classList.remove('scroll-long');
+                }
+
+                // 将当前消息对象挂载到DOM元素，方便点击时访问
+                scrollTextElement.dataset.messageType = message.type || "default";
+
+                // 下一条消息索引
+                messageIndex = (messageIndex + 1) % messages.length;
+            }
+
+            // 定时轮播
+            updateMessage();
+            setInterval(updateMessage, 7000);
+
+            // 点击跳转逻辑
+            scrollTextElement.addEventListener('click', function () {
+                const type = this.dataset.messageType;
+
+                switch (type) {
+                    case 'recommend':
+                        // 定位到“探索阿布扎比”
+                        const exploreZone = document.querySelector('.trends-zone');
+                        if (exploreZone) {
+                            exploreZone.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                        break;
+
+                    case 'event':
+                        // 【预留】跳转到活动专区
+                        // const eventSection = document.querySelector('.event-zone');
+                        // if (eventSection) eventSection.scrollIntoView({ behavior: 'smooth' });
+                        break;
+
+                    case 'system':
+                        // 【预留】跳转到系统通知页面
+                        // window.location.href = '/system_notifications';
+                        break;
+
+                    default:
+                        // 其他类型暂不处理
+                        console.log("未知类型消息：", type);
+                }
+            });
+
+            // --- [未修改] 沉浸式滚动侦测 ---
+            const appContainer = document.getElementById('app-container');
+            const appContent = document.getElementById('app-content');
+            const topBar = document.getElementById('top-bar');
+            
+            if (appContainer && appContent && topBar) {
+                const observerOptions = { root: appContent, rootMargin: '0px', threshold: 0.1 };
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            appContainer.classList.remove('activity-view-active');
+                        } else {
+                            appContainer.classList.add('activity-view-active');
+                        }
+                    });
+                }, observerOptions);
+                observer.observe(topBar);
+            }
+
+            // --- [已修改] 盲盒交互 (拉绳 + 翻转) ---
+            const pullRope = document.getElementById('pull-rope');
+            const cabinet = document.getElementById('blind-box-cabinet');
+             const userIdElement = document.getElementById('user-id-json');
+            const userId = userIdElement ? parseInt(userIdElement.textContent) : 1;
+            // const userId = 1;  // 当前用户ID
+            let currentCards = [];  // 存储当前卡片信息
+            
+            /**
+             * 生成新的盲盒卡片
+             */
+            async function generateNewCards() {
+                try {
+                    const response = await fetch('/api/generate_blind_box', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ user_id: userId })
+                    });
+                    
+                    if (!response.ok) {
+                        alert('生成卡片失败');
+                        return;
+                    }
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                        currentCards = result.data;
+                        renderCards(currentCards);
+                        console.log('卡片生成成功', currentCards);
+                    } else {
+                        alert(result.message || '生成卡片失败');
+                    }
+                } catch (error) {
+                    console.error('生成卡片出错:', error);
+                    alert('生成卡片出错');
+                }
+            }
+            
+            /**
+             * 渲染卡片到页面
+             */
+            function renderCards(cards) {
+                cabinet.innerHTML = '';
+                cards.forEach((card, index) => {
+                    const cellDiv = document.createElement('div');
+                    cellDiv.className = 'blind-box-cell';
+                    cellDiv.dataset.cardId = card.id;
+                    cellDiv.dataset.rewardId = card.reward_id;
+                    cellDiv.dataset.isStarCard = card.is_star_card;
+                    
+                    const innerDiv = document.createElement('div');
+                    innerDiv.className = 'card-inner';
+                    
+                    // 卡片正面
+                    const frontDiv = document.createElement('div');
+                    if (card.is_star_card) {
+                        frontDiv.className = 'card-face card-front is-star-card';
+                        frontDiv.innerHTML = `<svg class="icon"><use xlink:href="#icon-star"></use></svg>`;
+                    } else {
+                        frontDiv.className = 'card-face card-front';
+                        frontDiv.innerHTML = '<span>?</span>';
+                    }
+                    
+                    // 卡片背面（先显示占位符）
+                    const backDiv = document.createElement('div');
+                    backDiv.className = 'card-face card-back';
+                    backDiv.innerHTML = '<h5>恭喜!</h5><p>加载中...</p>';
+                    
+                    innerDiv.appendChild(frontDiv);
+                    innerDiv.appendChild(backDiv);
+                    cellDiv.appendChild(innerDiv);
+                    cabinet.appendChild(cellDiv);
+                    
+                    // 添加点击事件
+                    cellDiv.addEventListener('click', () => flipCard(cellDiv, card));
+                });
+            }
+
+            // 消耗抽奖次数
+            async function consumeRedeemCount() {
+                try {
+                    const response = await fetch('/api/consume_redeem_for_draw', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ user_id: userId })
+                    });
+
+                    const result = await response.json();
+                    if (!response.ok || !result.success) {
+                        alert(result.message || '抽奖次数不足');
+                        return false;
+                    }
+
+                    const redeemCount = result.data.current_redeem_count;
+                    updateRedeemDisplay(redeemCount);
+                    return true;
+
+                } catch (error) {
+                    console.error('消耗抽奖次数出错:', error);
+                    alert('抽奖次数出错');
+                    return false;
+                }
+            }
+
+            function updateRedeemDisplay(count) {
+                const redeemElement = document.querySelector('.redeem-count');
+                if (redeemElement) {
+                    redeemElement.textContent = `x${count}`;
+                }
+            }
+
+            
+            /**
+             * 翻开卡片
+             */
+            async function flipCard(cellElement, card) {
+                if (cabinet.classList.contains('is-shuffling')) return;
+                
+                const innerCard = cellElement.querySelector('.card-inner');
+                
+                // 检查卡片是否已翻
+                if (innerCard.classList.contains('is-flipped')) {
+                    return;  // 已翻的卡片不能再翻
+                }
+
+                const canDraw = await consumeRedeemCount();
+                if (!canDraw) return;  // 抽奖次数不足则返回
+                
+                try {
+                    const response = await fetch('/api/flip_card', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            user_id: userId,
+                            card_id: card.id,
+                            reward_id: card.reward_id
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const error = await response.json();
+                        alert(error.message || '翻卡失败');
+                        return;
+                    }
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                        const rewardData = result.data;
+                        
+                        // 更新卡片背面信息
+                        const backDiv = cellElement.querySelector('.card-back');
+                        // 星星卡则在h5部分显示“稀有奖励”，否则显示为“恭喜！”
+                        backDiv.innerHTML = `<h5>${card.is_star_card ? '稀有奖励' : '恭喜'}</h5><p>${rewardData.reward_title}</p>`;
+                        
+                        // 翻转卡片
+                        innerCard.classList.add('is-flipped');
+                        
+                        // 更新WECoin余额显示
+                        updateWecoinDisplay(rewardData.current_wecoin);
+                        
+                        console.log('翻卡成功', rewardData);
+                        
+                        // 可选：显示获得的奖品提示
+                        // alert(`恭喜获得: ${rewardData.reward_title}`);
+                    } else {
+                        alert(result.message || '翻卡失败');
+                    }
+                } catch (error) {
+                    console.error('翻卡出错:', error);
+                    alert('翻卡出错');
+                }
+            }
+            
+            /**
+             * 更新WECoin显示
+             */
+            function updateWecoinDisplay(wecoin) {
+                // 更新盲盒区域的WECoin显示
+                const wecoinReturnsElement = document.querySelector('.wecoin-returns p span:last-child');
+                if (wecoinReturnsElement) {
+                    wecoinReturnsElement.textContent = `x${wecoin}`;
+                }
+            }
+            
+            // 初始化：页面加载时生成卡片
+            window.addEventListener('load', () => {
+                generateNewCards();
+            });
+            
+            // 拉绳刷新卡片
+            if (pullRope && cabinet) {
+                pullRope.addEventListener('click', async () => {
+                    if (cabinet.classList.contains('is-shuffling')) return;
+                    
+                    pullRope.classList.add('is-pulling');
+                    cabinet.classList.add('is-shuffling');
+                    
+                    // 清除所有翻转状态
+                    cabinet.querySelectorAll('.card-inner.is-flipped').forEach(card => {
+                        card.classList.remove('is-flipped');
+                    });
+                    
+                    // 等待动画完成后生成新卡片
+                    setTimeout(() => {
+                        pullRope.classList.remove('is-pulling');
+                    }, 500);
+                    
+                    setTimeout(() => {
+                        generateNewCards();
+                        cabinet.classList.remove('is-shuffling');
+                    }, 400);
+
+                    // 消耗WECoin并刷新UI
+                    try {
+                        const response = await fetch('/api/consume_wecoin_for_flip', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ user_id: userId })
+                        });
+
+                        // 尝试解析 JSON（先防止非 JSON 响应抛异常）
+                        let result = null;
+                        const text = await response.text();
+                        try {
+                            result = text ? JSON.parse(text) : null;
+                        } catch (e) {
+                            console.error('响应不是有效 JSON:', text);
+                            alert('服务端响应格式错误');
+                            return;
+                        }
+
+                        if (!response.ok) {
+                            // 后端返回业务失败或 4xx/5xx
+                            const msg = result && result.message ? result.message : '消耗WECoin失败';
+                            alert(msg);
+                            return;
+                        }
+
+                        if (result && result.success) {
+                            const wecoin = result.data && result.data.current_wecoin;
+                            if (typeof wecoin !== 'undefined' && wecoin !== null) {
+                                updateWecoinDisplay(wecoin);
+                            } else {
+                                // 后端成功但没有余额字段 — 安全兜底
+                                console.warn('后端返回缺少 current_wecoin 字段', result);
+                                // 可选择再次请求余额接口或从页面其它位置读取
+                            }
+                        } else {
+                            alert(result && result.message ? result.message : '消耗WECoin失败');
+                        }
+                    } catch (error) {
+                        console.error('消耗WECoin出错:', error);
+                        alert('消耗WECoin出错');
+                    }
+
+                });
+            }
+            
+            // --- [未修改] 奖券按钮交互 (占位符) ---
+            const couponBtn = document.getElementById('coupon');
+            if (couponBtn) {
+                couponBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    alert('打开“我的奖券”\n (数据已在 coupons 变量中)');
+                });
+            }
+
+            // --- 设置功能 ---
+            let currentInputMode = ''; // 'username' 或 'password'
+
+            function openSettings() {
+                document.getElementById('settings-overlay').classList.add('active');
+            }
+
+            function closeSettings(event) {
+                if (!event || event.target.id === 'settings-overlay') {
+                    document.getElementById('settings-overlay').classList.remove('active');
+                }
+            }
+
+            function openChangeUsername() {
+                currentInputMode = 'username';
+                document.getElementById('input-modal-title').textContent = '修改用户名';
+                document.getElementById('input-modal-field').type = 'text';
+                document.getElementById('input-modal-field').placeholder = '请输入新用户名';
+                document.getElementById('input-modal-field').value = '';
+                closeSettings();
+                document.getElementById('input-overlay').classList.add('active');
+            }
+
+            function openChangePassword() {
+                currentInputMode = 'password';
+                document.getElementById('input-modal-title').textContent = '修改密码';
+                document.getElementById('input-modal-field').type = 'password';
+                document.getElementById('input-modal-field').placeholder = '请输入新密码';
+                document.getElementById('input-modal-field').value = '';
+                closeSettings();
+                document.getElementById('input-overlay').classList.add('active');
+            }
+
+            function closeInputModal(event) {
+                if (!event || event.target.id === 'input-overlay') {
+                    document.getElementById('input-overlay').classList.remove('active');
+                }
+            }
+
+            async function confirmInput() {
+                const value = document.getElementById('input-modal-field').value.trim();
+
+                if (!value) {
+                    alert('请输入内容');
+                    return;
+                }
+
+                if (currentInputMode === 'username') {
+                    // 修改用户名
+                    try {
+                        const response = await fetch('/api/update_username', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username: value })
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            alert('用户名修改成功！');
+                            location.reload();
+                        } else {
+                            alert('修改失败：' + result.message);
+                        }
+                    } catch (error) {
+                        alert('网络错误，请重试');
+                    }
+                } else if (currentInputMode === 'password') {
+                    // 修改密码
+                    try {
+                        const response = await fetch('/api/update_password', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ password: value })
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            alert('密码修改成功！');
+                            closeInputModal();
+                        } else {
+                            alert('修改失败：' + result.message);
+                        }
+                    } catch (error) {
+                        alert('网络错误，请重试');
+                    }
+                }
+
+                closeInputModal();
+            }
+
+            function logout() {
+                if (confirm('确定要退出登录吗？')) {
+                    window.location.href = '/logout';
+                }
+            }
+
+            // --- 探索阿布扎比功能 ---
+            async function loadAbuDhabiRecommendations() {
+                const exploreList = document.getElementById('explore-list');
+
+                try {
+                    const response = await fetch('/api/abu_dhabi_recommendations');
+                    const result = await response.json();
+
+                    if (result.success && result.recommendations) {
+                        // 清空加载提示
+                        exploreList.innerHTML = '';
+
+                        // 渲染推荐列表
+                        result.recommendations.forEach(item => {
+                            const itemDiv = document.createElement('a');
+                            itemDiv.className = 'explore-item';
+                            itemDiv.href = item.url;
+                            itemDiv.target = '_blank';
+
+                            itemDiv.innerHTML = `
+                                <div class="explore-item-icon">${item.icon}</div>
+                                <div class="explore-item-content">
+                                    <div class="explore-item-title">${item.title}</div>
+                                    <div class="explore-item-description">${item.description}</div>
+                                </div>
+                                <svg class="explore-item-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="9 18 15 12 9 6"></polyline>
+                                </svg>
+                            `;
+
+                            exploreList.appendChild(itemDiv);
+                        });
+                    } else {
+                        throw new Error('加载失败');
+                    }
+                } catch (error) {
+                    console.error('加载阿布扎比推荐失败:', error);
+                    exploreList.innerHTML = `
+                        <div class="explore-loading">
+                            <p>❌ 加载失败，请稍后再试</p>
+                        </div>
+                    `;
+                }
+            }
+
+            // 页面加载时自动获取推荐
+            loadAbuDhabiRecommendations();
+
+            // --- [未修改] 奖券包按钮交互 (占位符) ---
+            const couponPackBtn = document.getElementById('coupon-pack');
+            if (couponPackBtn) {
+                couponPackBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); 
+                    alert('打开“我的奖券包”\n (数据已在 coupons 变量中)');
+                });
+            }
+
+            // --- [未修改] 兑换记录按钮交互 (占位符) ---
+            const redeemHistoryBtn = document.getElementById('redeem-history');
+            if (redeemHistoryBtn) {
+                redeemHistoryBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    alert('打开“兑换记录”\n (数据已在 blind_box.redeem_history 中)');
+                });
+            }
+
+            // --- [未修改] 游戏规则展开交互 ---
+            const rulesToggle = document.getElementById('game-rules-toggle');
+            const rulesDetails = document.getElementById('game-rules-details');
+            
+            if(rulesToggle && rulesDetails) {
+                rulesToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    rulesDetails.classList.toggle('is-visible');
+                });
+            }
+
+        });
+    </script>
+    <script id="messages-json" type="application/json">{{ (messages | default([], true)) | tojson | safe }}</script>
+    <script id="user-id-json" type="application/json">{{ current_user_id | default(1, true) }}</script>
+
+</body>
+</html>

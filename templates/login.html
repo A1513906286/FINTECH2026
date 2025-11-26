@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>欢迎 - 虚拟信用卡</title>
+    <!-- 引入Tailwind CSS --><script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 基础样式 */
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
+            background-color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: #1c1c1e;
+        }
+        .app-container {
+            width: 390px;
+            max-width: 100%;
+            height: 844px;
+            background-color: #ffffff; 
+            border-radius: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-sizing: border-box;
+            transition: background-color 0.5s ease-in-out; 
+        }
+
+        /* iOS 状态栏 */
+        .ios-status-bar {
+            width: 100%; height: 44px; display: flex;
+            justify-content: space-between; align-items: center;
+            padding: 0 24px; box-sizing: border-box; background-color: transparent; 
+            color: #1c1c1e; position: absolute; top: 0; left: 0;
+            z-index: 10;
+        }
+        .status-bar-time { font-size: 15px; font-weight: 600; }
+        .status-bar-icons { display: flex; align-items: center; gap: 5px; }
+        .status-bar-icons .icon { width: 18px; height: 18px; stroke-width: 1.5; fill: none; stroke: currentColor; }
+        .status-bar-icons .icon-battery { width: 24px; height: 24px; stroke-width: 1.5; } /* 保持 index.html 的样式 */
+        
+        .dynamic-island-notch {
+            position: absolute; top: 8px; left: 50%;
+            transform: translateX(-50%); width: 120px; height: 30px; 
+            background-color: #000; border-radius: 20px; z-index: 9;
+        }
+        /* iOS Home 指示器 */
+        .home-indicator {
+            width: 134px; height: 5px; background-color: #1c1c1e;
+            border-radius: 100px; position: absolute; bottom: 10px;
+            left: 50%; transform: translateX(-50%); z-index: 12;
+        }
+
+        /* PIN 码输入点样式 (用于上滑面板) */
+        .panel-pin-dots .dot {
+            width: 14px; height: 14px;
+            border: 2px solid #9ca3af; /* 灰色边框 */
+            border-radius: 50%;
+            transition: background-color 0.2s ease;
+        }
+        .panel-pin-dots .dot.filled {
+            background-color: #22c55e; /* 绿色填充 */
+            border-color: #22c55e;
+        }
+
+        /* PIN 码键盘按钮 (用于上滑面板) */
+        .panel-pin-key {
+            background-color: rgba(210, 213, 219, 0.7); /* iOS 键盘灰色 */
+            border-radius: 50%;
+            width: 75px; height: 75px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 28px; font-weight: 400;
+            color: #000;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .panel-pin-key:active {
+            background-color: rgba(180, 183, 189, 0.7);
+        }
+        .panel-pin-key.icon-key {
+            background-color: transparent;
+        }
+        
+        /* 表单输入框统一样式 (绿色) */
+        .form-input {
+            background-color: #f3f4f6; /* 浅灰色背景 */
+            border: 1px solid #d1d5db;
+            color: #111827;
+            font-size: 16px;
+            border-radius: 12px;
+            padding: 14px 16px;
+            width: 100%;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #22c55e; 
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.3);
+        }
+        
+        /* 渐变背景 (绿色) */
+        .gradient-bg {
+            background: linear-gradient(135deg, #a8e063 0%, #56ab2f 100%);
+        }
+
+        /* 上滑面板样式 */
+        .login-panel-overlay {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            z-index: 40;
+            opacity: 0;
+            transition: opacity 0.4s ease-in-out;
+            pointer-events: none; /* 默认不可点 */
+        }
+        .login-panel-overlay.is-visible {
+            opacity: 1;
+            pointer-events: auto; /* 可见时可点 */
+        }
+        
+        .login-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+            transform: translateY(100%);
+            transition: transform 0.4s ease-in-out;
+            z-index: 50;
+        }
+
+        /* [新增] 修复上滑动画的 CSS 规则 */
+        .login-panel-overlay.is-visible .login-panel {
+            transform: translateY(0);
+        }
+
+        /* 修复 object-fit 的 Tailwind 类 */
+        .object-contain {
+            object-fit: contain;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container" id="app-container">
+        <!-- 伪状态栏 --><div class="dynamic-island-notch"></div>
+        <div class="ios-status-bar">
+            <span class="status-bar-time">9:41</span>
+            <!-- [修改] 替换为 index.html 的状态栏图标 -->
+            <div class="status-bar-icons">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><path d="M5.5 16.5v-3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1zm6 0v-6a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1zm6 0v-9a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1z"></path></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon icon-battery"><rect x="1" y="6" width="18" height="12" rx="2" ry="2" stroke="currentColor" fill="none" stroke-width="1.5"></rect><line x1="23" y1="10" x2="23" y2="14" stroke="currentColor" stroke-width="2"></line><rect x="3" y="8" width="14" height="8" rx="1" ry="1" fill="currentColor" stroke="none"></rect></svg>
+            </div>
+        </div>
+
+
+        <!-- 主内容区域 --><div class="flex-grow w-full h-full relative overflow-hidden mt-[44px] z-10">
+
+            <!-- 页面 1: 刷脸登录 (默认) -->
+            <div id="page-login" class="page-view absolute top-0 left-0 w-full h-full flex flex-col items-center p-8 pt-20 box-border">
+                
+                <!-- [新增] 左上角返回按钮 -->
+                <button id="back-to-bank-btn" class="absolute top-8 left-8 text-gray-500 z-20">
+                    <svg class="w-7 h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </svg>
+                </button>
+
+                <!-- [修改] 右上角图标 (替换为 index.html 的图标) -->
+                <div class="absolute top-8 right-8 flex gap-4 z-20">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon w-6 h-6 text-gray-500"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon w-6 h-6 text-gray-500"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><line x1="7" y1="12" x2="17" y2="12"></line></svg>
+                </div>
+
+                <!-- 顶部模块 (GIF + 文本) - 紧凑排列 -->
+                <div class="text-center">
+                    <!-- 容器和GIF都放大, 并用 object-contain 修复比例 -->
+                    <div class="flex justify-center gap-2 flex-wrap mb-4 h-48">
+                        <img id="random-emoji-gif" alt="Emoji 1" class="w-48 h-48 object-contain" onerror="this.src='https://placehold.co/192x192/eeeeee/aaaaaa?text=E'; this.onerror=null;">
+                    </div>
+                    <!-- [修改] 欢迎语变为 text-2xl, 并使用 Jinja2 变量 -->
+                    <h1 class="text-2xl font-medium text-gray-900">
+                        欢迎回来 <br>{{ user_name }} in {{ location_city }}
+                    </h1>
+                </div>
+
+                <!-- 中部模块 (Face ID) - 使用 flex-grow 将其推开 -->
+                <div class="flex-grow flex items-center justify-center">
+                <div class="flex flex-col items-center">
+                        <!-- 容器 w-24 h-24 (96px) -->
+                        <div id="face-id-btn" class="w-24 h-24 relative cursor-pointer">
+                            <!-- GIF 保持 w-full h-full -->
+                            <img id="face-id-gif" src="/static/FaceID.gif" alt="Face ID 动画" class="w-full h-full object-contain rounded-3xl mx-auto my-auto block transition-opacity duration-300" onerror="this.src='https://placehold.co/96x96/eeeeee/aaaaaa?text=FaceID'; this.onerror=null;">
+                            <!-- 成功覆盖层改为圆形 -->
+                            <div id="face-id-success" class="absolute inset-0 w-full h-full rounded-full bg-green-500 flex items-center justify-center text-white transition-opacity duration-300 opacity-0">
+                                <svg class="w-12 h-12" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                            <!-- 失败覆盖层改为圆形 -->
+                            <div id="face-id-fail" class="absolute inset-0 w-full h-full rounded-full bg-red-500 flex items-center justify-center text-white transition-opacity duration-300 opacity-0">
+                                <svg class="w-12 h-12" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                            </div>
+                        </div>
+                        <!-- 文本 -->
+                        <p class="text-xl font-medium text-green-600 mt-4">Face ID 登陆</p>
+                    </div>
+                </div>
+
+                <!-- 底部模块 (按钮组) - 紧凑排列 -->
+                <div class="w-full text-center pb-6">
+                    <!-- 布局增加 | 分割线 -->
+                    <div class="flex justify-center items-center gap-4">
+                        <button id="show-pin-btn" class="text-base font-medium text-green-600 py-3">使用PIN码登录</button>
+                        <span class="text-gray-300">|</span>
+                        <button id="show-password-btn" class="text-base font-medium text-green-600 py-3">使用密码登录</button>
+                    </div>
+
+                    <!-- 注册提示 -->
+                    <div class="mt-6 pt-4 border-t border-gray-200">
+                        <p class="text-sm text-gray-600 mb-2">还没有账户？</p>
+                        <a href="/register" class="inline-block px-6 py-2.5 bg-green-500 text-white text-base font-medium rounded-full hover:bg-green-600 transition shadow-md">
+                            立即注册
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 伪 Home 指示器 --><div class="home-indicator"></div>
+
+        <!-- [修改] 上滑登录面板 (已修复动画) -->
+        <div id="login-panel-overlay" class="login-panel-overlay">
+            <div id="login-panel" class="login-panel p-6 pb-10 box-border">
+                
+                <!-- 面板内容 -->
+                <div class="relative">
+                    <!-- 关闭按钮 -->
+                    <button id="panel-close-btn" class="absolute -top-2 right-0 text-gray-400">
+                        <svg class="w-8 h-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                    </button>
+                    
+                    <!-- 切换视图容器 -->
+                    <div id="pin-input-section" class="w-full">
+                        <h2 class="text-xl font-semibold text-center text-gray-800">输入PIN码</h2>
+                        <div id="panel-pin-dots-container" class="panel-pin-dots flex justify-center gap-4 mt-6">
+                        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                    </div>
+                        <p id="panel-pin-error" class="text-red-500 text-sm mt-3 h-5 text-center"></p> 
+
+                <!-- PIN 键盘 -->
+                        <div class="grid grid-cols-3 gap-x-10 gap-y-4 text-white mt-6 max-w-xs mx-auto">
+                            <button class="panel-pin-key" data-key="1">1</button>
+                            <button class="panel-pin-key" data-key="2">2</button>
+                            <button class="panel-pin-key" data-key="3">3</button>
+                            <button class="panel-pin-key" data-key="4">4</button>
+                            <button class="panel-pin-key" data-key="5">5</button>
+                            <button class="panel-pin-key" data-key="6">6</button>
+                            <button class="panel-pin-key" data-key="7">7</button>
+                            <button class="panel-pin-key" data-key="8">8</button>
+                            <button class="panel-pin-key" data-key="9">9</button>
+                            <button id="panel-show-password" class="panel-pin-key icon-key text-xs font-medium text-black">密码</button>
+                            <button class="panel-pin-key" data-key="0">0</button>
+                            <button id="panel-pin-delete" class="panel-pin-key icon-key">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.12c.36.53.9.88 1.59.88h15c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4.29 12.29L16.29 17 13 13.71 9.71 17 8.29 15.29 11.59 12 8.29 8.71 9.71 7.29 13 10.59 16.29 7.29 17.71 8.71 14.41 12l3.3 3.29z"/>
+                            </svg>
+                        </button>
+                </div>
+            </div>
+
+                    <div id="password-input-section" class="w-full hidden">
+                        <h2 class="text-xl font-semibold text-center text-gray-800">输入密码</h2>
+                        <form id="panel-password-form" class="space-y-4 mt-6 max-w-xs mx-auto">
+                        <div>
+                                <label for="panel-pass-username" class="text-sm font-medium text-gray-700">用户名</label>
+                                <input type="text" id="panel-pass-username" class="form-input mt-1 bg-gray-300" value="{{ user_name }}" readonly disabled>
+                        </div>
+                        <div>
+                                <label for="panel-pass-password" class="text-sm font-medium text-gray-700">密码</label>
+                                <input type="password" id="panel-pass-password" class="form-input mt-1" placeholder="请输入您的银行App密码">
+                        </div>
+                            <button id="panel-password-submit-btn" type="button" class="w-full text-white text-lg font-semibold py-3 rounded-2xl gradient-bg shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                        登录
+                    </button>
+                        </form>
+                        <button id="panel-show-pin" class="text-sm font-medium text-green-600 mt-4 text-center w-full">使用PIN码登录</button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // --- 随机 Emoji ---
+            const emojiGif = document.getElementById('random-emoji-gif');
+            if (emojiGif) {
+                const randomNum = Math.floor(Math.random() * 8) + 1; // 1 到 8
+                emojiGif.src = `/static/Emoji${randomNum}.gif`;
+                // 动态设置 onerror 
+                emojiGif.onerror = function() {
+                    this.src='https://placehold.co/192x192/eeeeee/aaaaaa?text=E' + randomNum;
+                    this.onerror=null;
+                };
+            }
+
+            // --- 主页按钮 ---
+            const faceIdBtn = document.getElementById('face-id-btn');
+            const faceIdSuccess = document.getElementById('face-id-success');
+            const faceIdFail = document.getElementById('face-id-fail'); 
+            const faceIdGif = document.getElementById('face-id-gif'); 
+            let isFaceIdBusy = false;
+            
+            // [新增] 让 Face ID GIF 只播放一次后停止
+            if (faceIdGif) {
+                const originalGifSrc = faceIdGif.src;
+                let hasPlayedOnce = false;
+                let staticFrameDataUrl = null;
+                
+                // 创建 canvas 来捕获第一帧
+                function captureFirstFrame(callback) {
+                    if (staticFrameDataUrl) {
+                        callback(staticFrameDataUrl);
+                        return;
+                    }
+                    
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = faceIdGif.naturalWidth || 96;
+                    canvas.height = faceIdGif.naturalHeight || 96;
+                    
+                    // 直接使用已加载的 GIF 图片来绘制第一帧
+                    try {
+                        ctx.drawImage(faceIdGif, 0, 0, canvas.width, canvas.height);
+                        const dataUrl = canvas.toDataURL('image/png');
+                        staticFrameDataUrl = dataUrl;
+                        callback(dataUrl);
+                    } catch (e) {
+                        // 如果 canvas 方法失败（可能是跨域问题），使用备用方法
+                        console.log('Canvas capture failed, using fallback method');
+                        // 备用方法：将 GIF 替换为静态占位符或保持最后一帧
+                        callback(null);
+                    }
+                }
+                
+                // 监听 GIF 加载完成
+                faceIdGif.addEventListener('load', function() {
+                    if (!hasPlayedOnce) {
+                        // 估算 GIF 播放时间（通常 Face ID GIF 大约 2-3 秒）
+                        // 如果知道确切时长，可以调整这个值
+                        const estimatedDuration = 5000; // 2.5 秒
+                        
+                        setTimeout(() => {
+                            // 播放一次后，将 GIF 替换为静态的第一帧
+                            captureFirstFrame(function(dataUrl) {
+                                if (dataUrl) {
+                                    // 成功捕获第一帧，替换为静态图片
+                                    faceIdGif.src = dataUrl;
+                                } else {
+                                    // 备用方法：重新加载 GIF 但添加时间戳来停止循环
+                                    // 通过移除并重新添加 src 来停止动画
+                                    const currentSrc = faceIdGif.src;
+                                    faceIdGif.src = '';
+                                    setTimeout(() => {
+                                        // 重新加载但这次不会自动播放（因为已经播放过一次）
+                                        faceIdGif.src = originalGifSrc + '?stop=1';
+                                        // 如果服务器不支持，则使用原始 src
+                                        setTimeout(() => {
+                                            if (faceIdGif.src.includes('stop=1')) {
+                                                faceIdGif.src = originalGifSrc;
+                                            }
+                                        }, 50);
+                                    }, 10);
+                                }
+                                hasPlayedOnce = true;
+                            });
+                        }, estimatedDuration);
+                    }
+                });
+                
+                // 如果 GIF 已经加载完成（缓存情况）
+                if (faceIdGif.complete && faceIdGif.naturalWidth > 0) {
+                    // 延迟触发，确保 GIF 已经开始播放
+                    setTimeout(() => {
+                        faceIdGif.dispatchEvent(new Event('load'));
+                    }, 100);
+                }
+            } 
+            
+            const showPinBtn = document.getElementById('show-pin-btn');
+            const showPasswordBtn = document.getElementById('show-password-btn'); 
+            const registerOtherRegionBtn = document.getElementById('register-other-region-btn');
+
+            // [新增] 返回按钮
+            const backToBankBtn = document.getElementById('back-to-bank-btn');
+
+            // --- 面板元素 ---
+            const loginPanelOverlay = document.getElementById('login-panel-overlay');
+            const loginPanel = document.getElementById('login-panel');
+            const panelCloseBtn = document.getElementById('panel-close-btn');
+            const pinInputSection = document.getElementById('pin-input-section');
+            const passwordInputSection = document.getElementById('password-input-section');
+            const panelShowPassword = document.getElementById('panel-show-password');
+            const panelShowPin = document.getElementById('panel-show-pin');
+            
+            // --- 面板内 PIN 码元素 ---
+            const panelPinDots = document.getElementById('panel-pin-dots-container').children;
+            const panelPinKeys = document.querySelectorAll('.panel-pin-key[data-key]');
+            const panelPinDeleteBtn = document.getElementById('panel-pin-delete');
+            const panelPinError = document.getElementById('panel-pin-error');
+            let currentPin = "";
+            const MAX_PIN_LENGTH = 6;
+
+            // --- 面板内 密码 元素 ---
+            const panelPasswordSubmitBtn = document.getElementById('panel-password-submit-btn');
+
+
+            // --- 面板切换逻辑 ---
+            function showPanel(mode) {
+                // 重置PIN
+                resetPin();
+                // 重置密码框
+                const passInput = document.getElementById('panel-pass-password');
+                if (passInput) passInput.value = "";
+                
+                if (mode === 'pin') {
+                    pinInputSection.style.display = 'block';
+                    passwordInputSection.style.display = 'none';
+                } else {
+                    pinInputSection.style.display = 'none';
+                    passwordInputSection.style.display = 'block';
+                }
+                loginPanelOverlay.classList.add('is-visible');
+                // [修改] CSS 中已修复动画, JS 保持不变
+            }
+
+            function hidePanel() {
+                loginPanelOverlay.classList.remove('is-visible');
+                // [修改] CSS 中已修复动画, JS 保持不变
+            }
+
+            // --- 导航功能 (链接到新面板) ---
+            showPinBtn.addEventListener('click', () => showPanel('pin'));
+            showPasswordBtn.addEventListener('click', () => showPanel('password'));
+            
+            // [新增] 返回按钮点击
+            backToBankBtn.addEventListener('click', () => {
+                showModal('提示', '即将返回微众银行App...');
+                // 可以在这里加一个 window.history.back() 或其他跳转逻辑
+            });
+
+            // 面板内切换
+            panelShowPassword.addEventListener('click', () => showPanel('password'));
+            panelShowPin.addEventListener('click', () => showPanel('pin'));
+
+            // 关闭面板
+            panelCloseBtn.addEventListener('click', hidePanel);
+            loginPanelOverlay.addEventListener('click', (e) => {
+                if (e.target === loginPanelOverlay) {
+                    hidePanel();
+                }
+            });
+
+            // --- 模拟登录/注册逻辑 ---
+            function simulateLoginSuccess(method) {
+                console.log(`模拟 ${method} 认证中...`);
+                // 隐藏面板（如果打开了）
+                hidePanel();
+                
+                setTimeout(() => {
+                    showModal('登录成功！', '正在跳转到您的信用卡主页...');
+                    setTimeout(() => {
+                         window.location.href = '/'; // 跳转到主页
+                    }, 2000);
+                }, 500); 
+            }
+            
+            // Face ID 交互逻辑 - 持续拍照识别（每2秒一次）
+            let faceIdStream = null;
+            let faceIdVideo = null;
+            let faceIdInterval = null;
+            let faceIdAttempts = 0;
+            const MAX_ATTEMPTS = 15; // 最多尝试15次（30秒）
+
+            faceIdBtn.addEventListener('click', async () => {
+                if (isFaceIdBusy) return;
+                isFaceIdBusy = true;
+                faceIdAttempts = 0;
+
+                // 1. 隐藏 GIF
+                faceIdGif.classList.add('opacity-0');
+                faceIdSuccess.classList.add('opacity-0');
+                faceIdFail.classList.add('opacity-0');
+
+                console.log("启动Face ID验证...");
+
+                try {
+                    // 2. 启动摄像头
+                    faceIdStream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'user',
+                            width: { ideal: 640 },
+                            height: { ideal: 480 }
+                        }
+                    });
+
+                    // 创建隐藏的video元素
+                    faceIdVideo = document.createElement('video');
+                    faceIdVideo.srcObject = faceIdStream;
+                    faceIdVideo.autoplay = true;
+                    faceIdVideo.style.display = 'none';
+                    document.body.appendChild(faceIdVideo);
+
+                    // 等待视频准备好
+                    await new Promise(resolve => {
+                        faceIdVideo.onloadedmetadata = () => {
+                            faceIdVideo.play();
+                            setTimeout(resolve, 800); // 等待800ms让摄像头稳定
+                        };
+                    });
+
+                    // 显示提示文字
+                    showFaceIdHint('正在识别中，请正对摄像头...');
+
+                    // 3. 开始定时拍照识别（每2秒一次）
+                    faceIdInterval = setInterval(async () => {
+                        faceIdAttempts++;
+                        console.log(`Face ID 尝试 ${faceIdAttempts}/${MAX_ATTEMPTS}`);
+
+                        // 检查是否超过最大尝试次数
+                        if (faceIdAttempts > MAX_ATTEMPTS) {
+                            stopFaceIdRecognition();
+                            showFaceIdError('识别超时，请重试');
+                            return;
+                        }
+
+                        // 拍照
+                        const canvas = document.createElement('canvas');
+                        canvas.width = faceIdVideo.videoWidth;
+                        canvas.height = faceIdVideo.videoHeight;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(faceIdVideo, 0, 0);
+
+                        // 转换为Base64
+                        const imageBase64 = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+
+                        // 发送到后端验证
+                        try {
+                            const response = await fetch('/api/login_with_face', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ image: imageBase64 })
+                            });
+
+                            const result = await response.json();
+
+                            if (result.success) {
+                                // 识别成功
+                                console.log("Face ID 成功 - 用户ID:", result.user_id, "相似度:", result.similarity);
+                                stopFaceIdRecognition();
+
+                                faceIdSuccess.classList.remove('opacity-0');
+                                showFaceIdHint('识别成功！');
+
+                                setTimeout(() => {
+                                    simulateLoginSuccess('Face ID');
+                                    faceIdGif.classList.remove('opacity-0');
+                                    faceIdSuccess.classList.add('opacity-0');
+                                    isFaceIdBusy = false;
+                                }, 1000);
+                            } else {
+                                // 识别失败，显示提示
+                                console.log("Face ID 失败:", result.message);
+                                const hints = [
+                                    '请正对摄像头...',
+                                    '请确保光线充足...',
+                                    '请移除遮挡物...',
+                                    '请保持面部清晰可见...',
+                                    '请靠近摄像头...'
+                                ];
+                                const randomHint = hints[Math.floor(Math.random() * hints.length)];
+                                showFaceIdHint(randomHint);
+                            }
+                        } catch (error) {
+                            console.error("Face ID 请求错误:", error);
+                            showFaceIdHint('网络错误，请检查连接...');
+                        }
+
+                    }, 2000); // 每2秒执行一次
+
+                } catch (error) {
+                    console.error("Face ID 摄像头错误:", error);
+                    stopFaceIdRecognition();
+                    showFaceIdError('无法访问摄像头，请检查权限');
+                }
+            });
+
+            // 停止Face ID识别
+            function stopFaceIdRecognition() {
+                // 停止定时器
+                if (faceIdInterval) {
+                    clearInterval(faceIdInterval);
+                    faceIdInterval = null;
+                }
+
+                // 关闭摄像头
+                if (faceIdStream) {
+                    faceIdStream.getTracks().forEach(track => track.stop());
+                    faceIdStream = null;
+                }
+
+                // 移除video元素
+                if (faceIdVideo) {
+                    document.body.removeChild(faceIdVideo);
+                    faceIdVideo = null;
+                }
+            }
+
+            // 显示Face ID提示
+            function showFaceIdHint(message) {
+                // 在Face ID图标下方显示提示
+                let hintElement = document.getElementById('faceid-hint');
+                if (!hintElement) {
+                    hintElement = document.createElement('p');
+                    hintElement.id = 'faceid-hint';
+                    hintElement.className = 'text-sm text-blue-600 mt-2 transition-opacity duration-300';
+                    faceIdBtn.parentElement.appendChild(hintElement);
+                }
+                hintElement.textContent = message;
+                hintElement.style.opacity = '1';
+            }
+
+            // 显示Face ID错误
+            function showFaceIdError(message) {
+                faceIdFail.classList.remove('opacity-0');
+                faceIdBtn.classList.add('animate-shake');
+                showFaceIdHint(message);
+
+                setTimeout(() => {
+                    faceIdFail.classList.add('opacity-0');
+                    faceIdGif.classList.remove('opacity-0');
+                    faceIdBtn.classList.remove('animate-shake');
+                    isFaceIdBusy = false;
+
+                    // 清除提示
+                    const hintElement = document.getElementById('faceid-hint');
+                    if (hintElement) {
+                        hintElement.style.opacity = '0';
+                    }
+                }, 3000);
+            }
+
+            // 密码登录 (使用面板内按钮)
+            panelPasswordSubmitBtn.addEventListener('click', () => {
+                const password = document.getElementById('panel-pass-password').value;
+                if (password === "123456") { // 模拟正确密码
+                    simulateLoginSuccess('密码');
+                } else {
+                    showModal('登录失败', '密码不正确，请重试。', 'error');
+                }
+            });
+            
+            // 注册其他
+            registerOtherRegionBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                showModal('功能开发中', '“注册其他地区”流程即将上线。');
+            });
+
+            // --- PIN 码键盘逻辑 (使用面板内元素) ---
+            function updatePinDots() {
+                panelPinError.textContent = ""; 
+                for (let i = 0; i < panelPinDots.length; i++) {
+                    if (i < currentPin.length) {
+                        panelPinDots[i].classList.add('filled');
+                    } else {
+                        panelPinDots[i].classList.remove('filled');
+                    }
+                }
+            }
+            
+            function resetPin() {
+                currentPin = "";
+                updatePinDots();
+            }
+
+            panelPinKeys.forEach(key => {
+                key.addEventListener('click', () => {
+                    if (currentPin.length < MAX_PIN_LENGTH) {
+                        currentPin += key.dataset.key;
+                        updatePinDots();
+                        if (currentPin.length === MAX_PIN_LENGTH) {
+                            setTimeout(() => {
+                                if (currentPin === "123456") { // 模拟正确PIN
+                                    simulateLoginSuccess('PIN码');
+                                    resetPin();
+                                } else {
+                                    panelPinError.textContent = "PIN码错误，请重试";
+                                    loginPanel.classList.add('animate-shake');
+                                    setTimeout(() => loginPanel.classList.remove('animate-shake'), 300);
+                                    resetPin();
+                                }
+                            }, 500);
+                        }
+                    }
+                });
+            });
+
+            panelPinDeleteBtn.addEventListener('click', () => {
+                if (currentPin.length > 0) {
+                    currentPin = currentPin.substring(0, currentPin.length - 1);
+                    updatePinDots();
+                }
+            });
+
+            // --- 自定义提示框 ---
+            function showModal(title, message, type = 'success') {
+                const oldModal = document.getElementById('custom-modal-overlay');
+                if (oldModal) {
+                    oldModal.remove();
+                }
+
+                const modalOverlay = document.createElement('div');
+                modalOverlay.id = 'custom-modal-overlay';
+                // [修改] 提高 z-index, 确保在面板之上
+                modalOverlay.className = 'absolute inset-0 w-full h-full bg-black/40 z-[60] flex items-center justify-center p-8';
+                
+                const modalBox = document.createElement('div');
+                modalBox.className = 'bg-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-xl w-full max-w-sm text-center transform scale-95 opacity-0 transition-all duration-300 ease-out';
+                
+                const titleEl = document.createElement('h3');
+                titleEl.className = 'text-lg font-semibold text-gray-900';
+                titleEl.textContent = title;
+                
+                const messageEl = document.createElement('p');
+                messageEl.className = 'text-sm text-gray-700 mt-2';
+                messageEl.textContent = message;
+                
+                const closeBtn = document.createElement('button');
+                closeBtn.className = 'mt-6 w-full bg-green-500 text-white py-2 rounded-lg font-medium';
+                closeBtn.textContent = '好的';
+                
+                modalBox.appendChild(titleEl);
+                modalBox.appendChild(messageEl);
+                modalBox.appendChild(closeBtn);
+                modalOverlay.appendChild(modalBox);
+                document.body.appendChild(modalOverlay);
+
+                setTimeout(() => {
+                    modalBox.classList.remove('scale-95');
+                    modalBox.classList.remove('opacity-0');
+                }, 10);
+
+                closeBtn.addEventListener('click', () => {
+                    modalBox.classList.add('scale-95');
+                    modalBox.classList.add('opacity-0');
+                    setTimeout(() => {
+                        modalOverlay.remove();
+                    }, 300);
+                });
+                
+                // [修改] 只有非 error 类型才自动关闭
+                if (type !== 'error') {
+                     setTimeout(() => {
+                        if (document.getElementById('custom-modal-overlay')) {
+                            closeBtn.click();
+                        }
+                    }, 2000);
+                }
+            }
+
+            // --- 动画样式 ---
+            const styleSheet = document.createElement("style");
+            styleSheet.type = "text/css";
+            styleSheet.innerText = `
+                @keyframes shake {
+                    0%, 100% { transform: translateX(0); }
+                    25% { transform: translateX(-5px); }
+                    75% { transform: translateX(5px); }
+                }
+                .animate-shake {
+                    animation: shake 0.3s ease-in-out;
+                }
+            `;
+            document.head.appendChild(styleSheet);
+
+        });
+    </script>
+</body>
+</html>
