@@ -1,0 +1,31 @@
+{
+  "user_name": "",
+  "summary": "用户主要进行日常通勤与地铁、餐饮与外卖、咖啡奶茶等消费，偶尔大额教育/医疗支出",
+  "income_stability": "中",
+  "risk_preference": "中性",
+  "consumption_patterns": {
+    "main_categories": [
+      "餐饮与外卖",
+      "咖啡奶茶"
+    ],
+    "small_ticket_high_frequency": true,
+    "night_consumption_tendency": "一般",
+    "online_offline_mix": "偏线上"
+  },
+  "preferred_tags": [
+    "coffee",
+    "milk_tea",
+    "fast_food",
+    "convenience_store",
+    "digital_payment",
+    "public_transport",
+    "healthcare"
+  ],
+  "evidence_examples": [
+    "频繁出现 茶百道/喜茶/奶茶 相关消费，金额 10-30 元",
+    "日常通勤与地铁消费高于其他类型",
+    "餐饮与外卖消费较多且频率高"
+  ],
+  "source_txt": "么越瀚_20251204_232657.txt",
+  "generated_at": "2025-12-04T23:27:02.939962"
+}

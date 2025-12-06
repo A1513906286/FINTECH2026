@@ -85,7 +85,7 @@ class UtilizationModelService:
             
             # 创建DMatrix并预测
             dmatrix = xgb.DMatrix(X, feature_names=self.feature_names)
-            base_utilization = self.model.predict(dmatrix)
+            base_utilization = self.model.predict(dmatrix) * 1.3  # 基础利用率预测值
 
             # 🔧 修正：根据额度调整利用率（因为模型对额度不够敏感）
             # 合理逻辑：额度越大 → 利用率越低（用户用不完）
@@ -102,7 +102,7 @@ class UtilizationModelService:
 
                 # 使用指数衰减函数
                 # utilization_multiplier = exp(-k * leverage_ratio)
-                k = 2  # 衰减系数
+                k = 1  # 衰减系数
                 leverage_multiplier = np.exp(-k * leverage_ratio)
 
                 # 调整利用率
@@ -112,7 +112,7 @@ class UtilizationModelService:
                 # 设置合理的上下限
                 # 最低30%（即使额度很大，也会用一些）
                 # 最高95%（即使额度很小，也不会100%用满）
-                # adjusted_utilization = np.clip(adjusted_utilization, 0.30, 0.95)
+                adjusted_utilization = np.clip(adjusted_utilization, 0, 1)
 
                 return adjusted_utilization
 

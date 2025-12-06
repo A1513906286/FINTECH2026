@@ -118,12 +118,15 @@ class CreditLimitService:
 
             print(f"\n🎯 模型预测:")
             print(f"  违约概率 (PD): {pd_prob:.2%}")
-            print(f"  额度利用率: {optimization_result['utilization']:.2%}")
+            print(f"  周转率 (Velocity): {optimization_result.get('velocity', 0):.2%}")
+            print(f"  月交易额 (GMV): ¥{optimization_result.get('gmv', 0):,.2f}")
             print(f"  风险等级: {risk_level}")
 
             print(f"\n💰 额度优化:")
             print(f"  最优额度: ¥{optimal_limit:,.2f}")
             print(f"  预期价值 (EV): ¥{max_ev:,.2f}")
+            print(f"  总收入: ¥{optimization_result.get('total_revenue', 0):,.2f}")
+            print(f"  总成本: ¥{optimization_result.get('total_cost', 0):,.2f}")
 
             if optimal_limit == 0:
                 print(f"\n⚠️  拒绝授信原因:")
@@ -143,7 +146,11 @@ class CreditLimitService:
                 'expected_value': float(max_ev),
                 'balance': float(balance),
                 'total_income': float(total_income),
-                'utilization': float(optimization_result['utilization']),
+                'velocity': float(optimization_result.get('velocity', 0)),
+                'gmv': float(optimization_result.get('gmv', 0)),
+                'total_revenue': float(optimization_result.get('total_revenue', 0)),
+                'total_cost': float(optimization_result.get('total_cost', 0)),
+                'utilization': float(optimization_result.get('velocity', 0)),  # 兼容旧字段
                 'message': f'预测成功 - {risk_level}，授信额度¥{optimal_limit:,.2f}，预期价值¥{max_ev:,.2f}'
             }
 

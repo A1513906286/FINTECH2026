@@ -11,13 +11,15 @@ from services.face_service import FaceRecognitionService
 from services.pdf_service import PDFService
 from services.credit_limit_service import CreditLimitService
 from services.abu_dhabi_service import AbuDhabiService
+from services.user_persona_service import UserPersonaService
 
 # 告诉 Flask 你的 static 文件夹在 'templates/static'
 app = Flask(__name__, static_folder='templates/static', static_url_path='/static')
 app.secret_key = 'anappleadaythedoctorkeepsalway'  # 用于session加密
 
-# 数据库路径
-DB_PATH = 'instance/fintech.db'
+# 数据库路径（与 utils/init_db.py 保持一致，存放在 utils/instance 目录下）
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'utils', 'instance', 'fintech.db')
 
 # 初始化数据库操作类和抽奖机（会自动创建目录和表）
 db = Database(DB_PATH)
@@ -35,6 +37,9 @@ abu_dhabi_service = AbuDhabiService(
     use_proxy=True,  # 改为False可禁用代理
     proxy_url="http://127.0.0.1:7890"  # Clash默认端口
 )
+
+# 用户画像服务（基于银行流水 txt + 本地 Ollama）
+user_persona_service = UserPersonaService()
 
 # 创建上传文件夹
 UPLOAD_FOLDER = 'uploads/faces'
@@ -559,6 +564,98 @@ def login():
     return render_template('login.html', user_name=user_data['name'], location_city=user_data['location_city'])
 # --- 结束 修改 ---
 
+
+# --- (新增) 为账单页面添加路由 ---
+@app.route('/bill')
+def bill():
+    """
+    提供账单页面。
+    获取当前用户的账单数据并渲染bill.html模板。
+    """
+    current_user_id = get_current_user_id()
+
+    # 连接数据库
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    # 查询用户基本信息
+    cursor.execute('''
+        SELECT username, avatar_initial, card_number, region, location_city
+        FROM user
+        WHERE id = ?
+    ''', (current_user_id,))
+    user_row = cursor.fetchone()
+
+    # 如果用户不存在，使用默认值
+    if not user_row:
+        user_data = {
+            "name": "Guest",
+            "avatar_initial": "G",
+            "card_number": "未设置",
+            "region": "未设置",
+            "location_city": "未设置"
+        }
+    else:
+        user_data = {
+            "name": user_row['username'],
+            "avatar_initial": user_row['avatar_initial'],
+            "card_number": user_row['card_number'],
+            "region": user_row['region'],
+            "location_city": user_row['location_city']
+        }
+
+    # 查询账单数据（最近10条交易）
+    cursor.execute('''
+        SELECT id, amount, currency, converted_amount, spend_time, merchant_name, location, tag, note
+        FROM transactions
+        WHERE user_id = ?
+        ORDER BY spend_time DESC
+        LIMIT 10
+    ''', (current_user_id,))
+    transactions = cursor.fetchall()
+
+    # 格式化交易数据
+    bills = [
+        {
+            "id": row['id'],
+            "amount": row['amount'],
+            "currency": row['currency'] or "USD",
+            "converted_amount": row['converted_amount'],
+            "spend_time": row['spend_time'],
+            "merchant_name": row['merchant_name'] or "未知商户",
+            "location": row['location'] or "位置未知",
+            "tag": row['tag'] or "General",
+            "note": row['note'] or ""
+        }
+        for row in transactions
+    ]
+
+    # 查询汇率数据
+    cursor.execute('''
+        SELECT pair, value
+        FROM exchange_rate
+        ORDER BY updated_at DESC
+        LIMIT 1
+    ''')
+    rate_row = cursor.fetchone()
+    rate_data = {
+        "pair": rate_row['pair'] if rate_row else "USD/CNY",
+        "value": f"{rate_row['value']:.2f}" if rate_row else "7.20"
+    }
+
+    conn.close()
+
+    # 渲染bill.html并传入数据
+    return render_template(
+        'bill.html',
+        user=user_data,
+        bills=bills,
+        rate=rate_data,
+        current_user_id=current_user_id
+    )
+# --- 结束 新增 ---
+
 # 模拟的全局用户数据 (方便多页面使用)
 MOCK_USER_DATA = {
     "name": "Yogurt",
@@ -973,6 +1070,15 @@ def upload_bank_statement():
         # 提取流水信息
         result = pdf_service.extract_bank_statement(filepath)
 
+        # 调用本地 Ollama 为最新的银行流水 txt 生成/更新用户画像 JSON
+        try:
+            generated_personas = user_persona_service.build_persona_for_all()
+            if generated_personas:
+                print(f"[UserPersona] 本次上传后生成画像: {generated_personas}")
+        except Exception as e:
+            # 画像生成失败不影响额度预测与注册流程，只打印日志
+            print(f"[UserPersona] 生成用户画像失败: {e}")
+
         # 存储到临时数据（使用session ID作为key）
         session_id = session.get('temp_registration_id', str(datetime.now().timestamp()))
         session['temp_registration_id'] = session_id
@@ -1059,27 +1165,68 @@ def upload_balance_proof():
         if session_id not in registration_temp_data:
             registration_temp_data[session_id] = {}
 
-        # 🔧 修改逻辑：只在没有银行流水PDF时才保存余额证明的余额
-        # 如果已经有PDF数据（包含余额），则忽略余额证明
-        if 'pdf_data' in registration_temp_data[session_id]:
-            existing_balance = registration_temp_data[session_id].get('balance', 0)
-            print(f"⚠️ 已有银行流水PDF数据，余额证明被忽略")
-            print(f"  - 保留PDF余额: ¥{existing_balance:,.2f}")
-            print(f"  - 忽略余额证明: ¥{result['balance']:,.2f}")
-        else:
-            # 没有PDF数据，使用余额证明
-            registration_temp_data[session_id]['balance'] = result['balance']
-            registration_temp_data[session_id]['currency'] = result['currency']
-            print(f"✓ 余额证明上传成功: ¥{result['balance']:,.2f}")
+        # 🔧 修改逻辑：优先使用银行流水PDF的余额
+        pdf_data = registration_temp_data[session_id].get('pdf_data')
+        existing_balance = registration_temp_data[session_id].get('balance', 0)
 
-        return jsonify({
-            'success': True,
-            'message': result['message'],
-            'data': {
-                'balance': result['balance'],
-                'currency': result['currency']
-            }
-        })
+        # 检查银行流水PDF是否已经包含余额
+        has_pdf_balance = False
+        pdf_balance_value = 0
+        if pdf_data:
+            pdf_current_balance = pdf_data.get('current_balance')
+            pdf_balance = pdf_data.get('balance')
+            if pdf_current_balance is not None:
+                has_pdf_balance = True
+                pdf_balance_value = pdf_current_balance
+            elif pdf_balance is not None:
+                has_pdf_balance = True
+                pdf_balance_value = pdf_balance
+
+        if has_pdf_balance:
+            # 已有银行流水PDF余额，直接使用PDF余额（忽略余额证明）
+            print(f"✓ 已有银行流水PDF余额，直接使用")
+            print(f"  - 使用PDF余额: ¥{pdf_balance_value:,.2f}")
+            if result['success']:
+                print(f"  - 忽略余额证明: ¥{result['balance']:,.2f}")
+            else:
+                print(f"  - 余额证明提取失败（已忽略）")
+
+            return jsonify({
+                'success': True,
+                'message': f'已使用银行流水PDF余额: ¥{pdf_balance_value:,.2f}',
+                'ignored': True,
+                'data': {
+                    'balance': pdf_balance_value,  # 返回PDF余额
+                    'currency': 'CNY'
+                }
+            })
+        else:
+            # 没有PDF余额，尝试使用余额证明
+            if result['success']:
+                registration_temp_data[session_id]['balance'] = result['balance']
+                registration_temp_data[session_id]['currency'] = result['currency']
+                print(f"✓ 余额证明上传成功: ¥{result['balance']:,.2f}")
+
+                return jsonify({
+                    'success': True,
+                    'message': result['message'],
+                    'ignored': False,
+                    'data': {
+                        'balance': result['balance'],
+                        'currency': result['currency']
+                    }
+                })
+            else:
+                # 余额证明提取失败，且没有PDF余额
+                print(f"❌ 余额证明提取失败且无PDF余额: {result['message']}")
+                return jsonify({
+                    'success': False,
+                    'message': '余额证明提取失败，且银行流水PDF中也未找到余额',
+                    'data': {
+                        'balance': 0,
+                        'currency': 'RMB'
+                    }
+                }), 400
 
     except Exception as e:
         print(f"余额证明上传错误: {str(e)}")
@@ -1120,8 +1267,21 @@ def predict_credit_limit():
                 print(f"[调试] pdf_data.balance: {pdf_balance}")
                 print(f"[调试] temp_data.balance: {temp_balance}")
 
-                # 优先使用PDF中的余额，如果没有则使用余额证明的余额
-                balance = pdf_current_balance or pdf_balance or temp_balance or 4204.74
+                # 优先使用银行流水PDF中的余额（即使是0也使用）
+                # 只有当PDF中没有余额字段时，才使用余额证明的余额
+                if pdf_current_balance is not None:
+                    balance = pdf_current_balance
+                    print(f"✓ 使用银行流水PDF的current_balance: ¥{balance:,.2f}")
+                elif pdf_balance is not None:
+                    balance = pdf_balance
+                    print(f"✓ 使用银行流水PDF的balance: ¥{balance:,.2f}")
+                elif temp_balance is not None:
+                    balance = temp_balance
+                    print(f"✓ 使用余额证明的balance: ¥{balance:,.2f}")
+                else:
+                    balance = 4204.74
+                    print(f"⚠️ 未找到余额，使用默认值: ¥{balance:,.2f}")
+
                 print(f"✓ 从PDF数据获取: 收入=¥{total_income:,.2f}, 余额=¥{balance:,.2f}")
             else:
                 total_income = temp_data.get('total_income', 74707.66)
@@ -1161,6 +1321,26 @@ def logout():
     return render_template('login.html', user_name='Guest', location_city='Abu Dhabi')
 
 
+@app.route('/api/transactions', methods=['GET'])
+def get_transactions():
+    """获取用户交易记录"""
+    try:
+        user_id = get_current_user_id()
+        limit = request.args.get('limit', 10, type=int)
+
+        transactions = db.get_user_transactions(user_id, limit)
+
+        return jsonify({
+            'success': True,
+            'data': transactions
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': str(e)
+        }), 500
+
+
 # ==================== 阿布扎比推荐API ====================
 
 @app.route('/api/abu_dhabi_recommendations', methods=['GET'])
@@ -1169,7 +1349,9 @@ def get_abu_dhabi_recommendations():
     获取阿布扎比推荐信息
     """
     try:
-        recommendations = abu_dhabi_service.generate_recommendations()
+        # 为当前登录用户加载本地消费画像（示例版：使用 user_persona 目录下最新的画像文件）
+        persona = user_persona_service.get_latest_persona()
+        recommendations = abu_dhabi_service.generate_recommendations(persona=persona)
         return jsonify({
             'success': True,
             'recommendations': recommendations,

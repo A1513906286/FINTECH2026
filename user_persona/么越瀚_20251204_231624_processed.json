@@ -1,0 +1,31 @@
+{
+  "user_name": "",
+  "summary": "该用户主要是通过小额的餐饮、咖啡奶茶和日常通勤支出",
+  "income_stability": "中",
+  "risk_preference": "偏稳健",
+  "consumption_patterns": {
+    "main_categories": [
+      "餐饮与外卖",
+      "咖啡奶茶"
+    ],
+    "small_ticket_high_frequency": true,
+    "night_consumption_tendency": "不明显",
+    "online_offline_mix": "线上线下均衡"
+  },
+  "preferred_tags": [
+    "coffee",
+    "milk_tea",
+    "fast_food",
+    "convenience_store",
+    "digital_payment",
+    "public_transport"
+  ],
+  "evidence_examples": [
+    "该用户在流水中频繁出现茶百道/喜茶/奶茶相关消费，金额10-30元",
+    "他们的日常通勤支出也较高，涉及到公交卡和地铁卡",
+    "偶尔会出现网购和平台支付的记录，但总体来说偏向线上",
+    "他们的夜间消耗模式不明显"
+  ],
+  "source_txt": "么越瀚_20251204_231624.txt",
+  "generated_at": "2025-12-04T23:16:30.025876"
+}

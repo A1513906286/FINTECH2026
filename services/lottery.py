@@ -3,6 +3,7 @@ from datetime import datetime
 import sqlite3
 from utils.database import Database
 from services.lottery_prob import draw_four_with_reduction
+from services.user_persona_service import UserPersonaService
 
 
 class LotteryMachine:
@@ -17,6 +18,8 @@ class LotteryMachine:
         """初始化抽奖机"""
         self.db = Database(db_path)
         self.db_path = db_path
+        # 用户画像服务：用于让抽奖奖品更贴近用户日常消费偏好
+        self.user_persona_service = UserPersonaService()
     
     # ==================== 第一步：初始化抽奖卡片 ====================
     
@@ -38,9 +41,11 @@ class LotteryMachine:
         }
         """
         try:
-            # 1) 使用我们封装好的抽奖算法从 reward 表中抽取最多 4 个奖品（允许重复）
+            # 1) 结合用户画像，使用我们封装好的抽奖算法从 reward 表中抽取最多 4 个奖品（允许重复）
+            #    persona 目前来自 user_persona 目录下最新的银行流水画像文件（示例项目：所有用户共用）
+            persona = self.user_persona_service.get_latest_persona()
             #    draw_four_with_reduction 会返回 reward 行的 dict 列表（长度最多为4，可能包含 None）
-            drawn_rewards = draw_four_with_reduction(self.db, user_id)
+            drawn_rewards = draw_four_with_reduction(self.db, user_id, persona=persona)
 
             if not drawn_rewards:
                 return {

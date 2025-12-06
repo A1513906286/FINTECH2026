@@ -2,8 +2,8 @@ import sqlite3
 from datetime import datetime, timedelta
 import os
 
-# 数据库文件夹和文件名（在项目根目录的instance文件夹）
-DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'instance')
+# 数据库文件夹和文件名
+DB_DIR = os.path.join(os.path.dirname(__file__), 'instance')
 DB_NAME = os.path.join(DB_DIR, 'fintech.db')
 
 # 如果 instance 文件夹不存在则创建
@@ -59,6 +59,15 @@ CREATE TABLE IF NOT EXISTS transactions (
     rate REAL,
     wecoin_earned INTEGER,
     spend_time DATETIME,
+    photo_url TEXT,
+    photo_time DATETIME,
+    location TEXT,
+    tag TEXT,
+    note TEXT,
+    location_image TEXT,
+    merchant_name TEXT,
+    merchant_avatar TEXT,
+    merchant_category TEXT,
     FOREIGN KEY(user_id) REFERENCES user(id)
 )
 ''')

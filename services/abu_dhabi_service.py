@@ -11,9 +11,17 @@ import json
 from bs4 import BeautifulSoup
 import re
 
+from services.user_persona_service import UserPersonaService
+
 
 class AbuDhabiService:
-    def __init__(self, model_name="llama3.2:3b", use_proxy=True, proxy_url="http://127.0.0.1:7890", ollama_url="http://127.0.0.1:11434"):
+    def __init__(
+        self,
+        model_name="llama3.2:3b",
+        use_proxy=True,
+        proxy_url="http://127.0.0.1:7890",
+        ollama_url="http://127.0.0.1:11434",
+    ):
         """
         初始化阿布扎比推荐服务
 
@@ -26,6 +34,9 @@ class AbuDhabiService:
         self.model_name = model_name
         self.use_proxy = use_proxy
         self.ollama_url = ollama_url
+
+        # 用户画像服务（用于个性化主题与提示词）
+        self.user_persona_service = UserPersonaService()
 
         # 配置代理
         if use_proxy:
@@ -162,49 +173,82 @@ class AbuDhabiService:
             traceback.print_exc()
             return []
     
-    def generate_recommendations(self):
+    def _choose_topic_by_persona(self, persona):
+        """
+        根据用户画像中的 preferred_tags 直接构造搜索关键词。
+        优先使用画像里的标签作为 DuckDuckGo 的查询词，而不是预设主题列表。
+        """
+        if persona:
+            preferred_tags = persona.get("preferred_tags") or []
+            # 把标签拼成一个查询短语，交给 DuckDuckGo，再由大模型结合结果生成中文推荐
+            if preferred_tags:
+                # 例如: "Abu Dhabi coffee milk_tea fast_food online_shopping"
+                joined_tags = " ".join(str(t) for t in preferred_tags)
+                return f"Abu Dhabi {joined_tags}"
+
+        # 如果没有画像或标签为空，使用一个通用查询词兜底
+        return "Abu Dhabi travel guide"
+
+    def generate_recommendations(self, persona=None):
         """
         自动生成阿布扎比推荐
         返回3条推荐信息
         """
         
         try:
-            # 定义推荐主题
-            topics = [
-                "阿布扎比必去景点",
-                "阿布扎比美食推荐",
-                "阿布扎比购物中心",
-                "阿布扎比文化体验",
-                "阿布扎比海滩度假"
-            ]
+            # 若外部未显式传入 persona，则尝试从本地 user_persona 目录读取最新画像
+            if persona is None:
+                persona = self.user_persona_service.get_latest_persona()
+
+            # 基于画像挑选更贴近用户的主题
+            topic = self._choose_topic_by_persona(persona)
             
-            # 随机选择一个主题
-            topic = random.choice(topics)
-            
-            # 搜索相关信息
+            # 搜索相关信息（先抓取最多 5 条，再随机选 3 条）
             print(f"🔍 正在搜索: {topic}")
             search_results = self.search_duckduckgo(topic, num_results=5)
-            
+
             if not search_results:
                 return self._get_default_recommendations()
+
+            # 随机选取 3 条结果，而不是固定前 3 条
+            if len(search_results) > 3:
+                selected_results = random.sample(search_results, 3)
+            else:
+                selected_results = search_results
             
             # 构建提示词
             search_context = "\n".join([
-                f"- {r['title']}" for r in search_results[:3]
+                f"- {r['title']}" for r in selected_results
             ])
             
-            system_prompt = """你是阿布扎比旅游专家。请根据搜索结果，生成3条简短的阿布扎比推荐。
-每条推荐格式：
-1. 标题（10-15字）
-2. 简介（20-30字）
+            # 把用户画像短摘要也喂给模型，让推荐更贴近消费习惯（如偏好咖啡/小吃/打卡）
+            persona_summary = ""
+            if persona:
+                persona_summary = json.dumps(
+                    {
+                        "user_name": persona.get("user_name", ""),
+                        "summary": persona.get("summary", ""),
+                        "preferred_tags": persona.get("preferred_tags", []),
+                    },
+                    ensure_ascii=False,
+                )
+
+            system_prompt = """你是阿布扎比旅游与消费推荐专家。
+你需要结合【搜索结果】和【用户消费画像】，为该用户生成 3 条个性化的阿布扎比推荐。
 
 要求：
-- 简洁有趣
-- 适合游客
-- 突出特色
-- 用中文回答"""
+- 用简体中文输出
+- 每条推荐都要尽量贴合用户消费习惯（例如：喜欢咖啡/奶茶就多推荐咖啡馆/甜品店；喜欢在线消费就多推荐商场/购物中心等）
+- 保持简洁有趣，适合年轻游客
+- 但必须以网址主题内容为事实基准，不能为了贴合用户习惯而编造内容！
+每条推荐格式：
+1. 标题（10-15字）
+2. 简介（20-30字）"""
 
-            user_prompt = f"""基于以下搜索结果，生成3条阿布扎比推荐：
+            user_prompt = f"""下面是用户的消费画像（由银行流水推断，仅包含大类偏好）：
+{persona_summary}
+
+以及围绕主题「{topic}」抓取到的搜索结果标题：
 
 {search_context}
 
@@ -241,9 +285,9 @@ class AbuDhabiService:
 
             data = response.json()
             ai_response = data.get('message', {}).get('content', '')
-            
-            # 解析AI响应
-            recommendations = self._parse_ai_response(ai_response, search_results)
+
+            # 解析AI响应，基于随机选出的 3 条搜索结果生成推荐
+            recommendations = self._parse_ai_response(ai_response, selected_results)
             
             print(f"✅ 生成了 {len(recommendations)} 条推荐")
             return recommendations

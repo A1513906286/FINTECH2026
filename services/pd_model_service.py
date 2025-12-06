@@ -109,10 +109,10 @@ class PDModelService:
                 # 第一步：缩小base_proba到合理范围
                 # 如果base_proba很高（>0.5），需要更大幅度缩小
 
-                scaled_base_proba = base_proba * 0.7
+                scaled_base_proba = base_proba * 0.3
 
                 # 第二步：使用强指数函数放大
-                k = 1.0  # 指数调整系数（从0.5提高到1.0，增长更快）
+                k = 1.5  # 指数调整系数（从0.5提高到1.0，增长更快）
                 leverage_multiplier = np.exp(k * leverage_ratio)
 
                 # 调整违约概率

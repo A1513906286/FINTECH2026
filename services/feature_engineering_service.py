@@ -106,30 +106,7 @@ class FeatureEngineeringService:
         features['credit_to_income_ratio'] = (
             credit_amount / (total_income + 1.0)
         )
-
-        # 打印所有特征值用于调试
-        print("\n" + "="*60)
-        print("特征工程 - 13个核心指标:")
-        print("="*60)
-        print(f"【收入能力】")
-        print(f"  1. avg_income_3m (3个月平均收入): ¥{features['avg_income_3m']:,.2f}")
-        print(f"  2. income_variance_3m (收入方差): ¥{features['income_variance_3m']:,.2f}")
-        print(f"  3. total_income (总收入): ¥{features['total_income']:,.2f}")
-        print(f"\n【支出能力】")
-        print(f"  4. avg_large_spending (大额支出): ¥{features['avg_large_spending']:,.2f}")
-        print(f"  5. avg_monthly_consumption (月消费): ¥{features['avg_monthly_consumption']:,.2f}")
-        print(f"  6. income_consumption_ratio (收支比): {features['income_consumption_ratio']:.2f}")
-        print(f"\n【偿还能力】")
-        print(f"  7. current_balance (当前余额): ¥{features['current_balance']:,.2f}")
-        print(f"  8. balance_income_ratio (余额收入比): {features['balance_income_ratio']:.2f}")
-        print(f"  9. min_balance_12m (最低余额): ¥{features['min_balance_12m']:,.2f}")
-        print(f" 10. payday_plus_5_drop (还款压力): {features['payday_plus_5_drop']:.2f}")
-        print(f" 11. large_withdrawal_ratio (大额取现比): {features['large_withdrawal_ratio']:.2f}")
-        print(f"\n【额度相关】")
-        print(f" 12. credit_amount (候选额度): ¥{features['credit_amount']:,.2f}")
-        print(f" 13. credit_to_income_ratio (杠杆率): {features['credit_to_income_ratio']:.2f}")
-        print("="*60 + "\n")
-
+        
         return features
     
     def prepare_features_for_model(self, features_dict):

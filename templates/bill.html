@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>账单页面 - 虚拟信用卡</title>
+    <style>
+        /* 全局基础 reset + box-sizing */
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #e0e0e0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", "Segoe UI", Roboto, Arial, sans-serif;
+            color: #1c1c1e;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            width: 390px;
+            max-width: 100%;
+            min-height: 844px;
+            background-color: #faf7ee;
+            border-radius: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
+        }
+
+        /* iOS 状态栏 + 灵动岛 notch */
+        .ios-status-bar {
+            width: 100%;
+            height: 44px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 24px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+            color: #1c1c1e;
+            background-color: transparent;
+        }
+
+        .status-bar-time {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .status-bar-icons {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .status-bar-icons .icon {
+            width: 18px;
+            height: 18px;
+            stroke-width: 1.5;
+            fill: none;
+            stroke: currentColor;
+        }
+
+        .status-bar-icons .icon-battery {
+            width: 24px;
+            height: 24px;
+            stroke-width: 1.5;
+        }
+
+        .dynamic-island-notch {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 30px;
+            background-color: #000;
+            border-radius: 20px;
+            z-index: 9;
+        }
+
+        .home-indicator {
+            width: 134px;
+            height: 5px;
+            background-color: #1c1c1e;
+            border-radius: 100px;
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 12;
+        }
+
+        /* 主内容区 (safe-area 内) */
+        .content-area {
+            padding-top: 30px;
+            padding-bottom: 10px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .container {
+            width: 100%;
+            padding: 16px;
+        }
+
+        /* ========== 搜索栏 (新版) ========== */
+        .search-bar {
+            margin: 12px 0 18px 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        .search-input-wrapper {
+            position: relative;
+            width: calc(100% - 10px);
+            max-width: 100%;
+            height: 28px;
+            margin: 0 auto;
+        }
+
+        .search-input-wrapper input {
+            width: 100%;
+            padding: 6px 44px 6px 16px;
+            border: none;
+            border-radius: 45px;
+            background-color: #ffffff;
+            color: transparent;
+            caret-color: transparent;
+            font-size: 16px;
+            outline: none;
+            height: 100%;
+        }
+
+        .search-input-wrapper .search-icon {
+            position: absolute;
+            top: 50%;
+            right: 12px;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            pointer-events: none;
+            opacity: 1.0;
+        }
+
+        /* ========== 消费回忆区域 (新增) ========== */
+        .memory-section {
+            width: 100%;
+            margin: 0 auto;
+            margin-top: 5px;
+            position: relative;
+            overflow: hidden;
+            border-radius: 10px;
+            height: 380px;
+            /* 保持与原来两个区域总高度一致 */
+        }
+
+        .memory-slider-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            transition: transform 0.3s ease;
+        }
+
+        .memory-item {
+            flex: 0 0 100%;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 照片卡片区域 */
+        .memory-photo-card {
+            position: relative;
+            width: 100%;
+            padding-top: 64%;
+            border-radius: 10px;
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        /* 照片下方日期和地点信息 */
+        .photo-info {
+            margin-top: 8px;
+            width: 100%;
+            padding-left: 2px;
+            background-color: #faf7ee;
+            padding-bottom: 8px;
+        }
+
+        .photo-date {
+            font-size: 14px;
+            color: #3c4141;
+            text-align: left;
+            margin-bottom: 4px;
+        }
+
+        .photo-location {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            font-size: 12px;
+            color: #3c4141c2;
+        }
+
+        .location-icon {
+            width: 14px;
+            height: 14px;
+            margin-right: 6px;
+        }
+
+        /* 账单数据区域 */
+        .memory-bill-data {
+            width: 100%;
+            height: 110px;
+            background-color: #f5f5f5;
+            border-radius: 0 0 10px 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 金额显示区域 */
+        .amount-section {
+            height: 50%;
+            background-color: #ffd044d1;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .amount-display {
+            display: flex;
+            align-items: baseline;
+            width: 100%;
+        }
+
+        .original-amount {
+            font-size: 26px;
+            color: #3c4141;
+            font-weight: 500;
+        }
+
+        .original-currency {
+            font-size: 18px;
+            color: #3c4141;
+            margin-left: 4px;
+        }
+
+        .conversion-symbol {
+            font-size: 18px;
+            color: #ffffff;
+            margin: 0 6px;
+        }
+
+        .converted-amount {
+            font-size: 16px;
+            color: #ffffff;
+        }
+
+        .converted-currency {
+            font-size: 12px;
+            color: #ffffff;
+            margin-left: 0px;
+        }
+
+        /* 底部区域容器 */
+        .bottom-section {
+            height: 60%;
+            display: flex;
+        }
+
+        /* 左侧区域 */
+        .left-section {
+            width: 75%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 备注区域 */
+        .note-section {
+            height: 40%;
+            background-color: #ffffff44;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .note-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            outline: none;
+            font-size: 14px;
+            color: #403a3b;
+        }
+
+        .note-input::placeholder {
+            color: #403a3b;
+        }
+
+        /* 标签区域 */
+        .category-section {
+            height: 50%;
+            background-color: #ffffff44;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 8px;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .tag-primary {
+            font-size: 16px;
+            color: #403a3b;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .location-suggestion {
+            font-size: 14px;
+            color: rgba(64, 58, 59, 0.7);
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .feedback-buttons {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .feedback-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            opacity: 0.3;
+            transition: opacity 0.2s ease;
+        }
+
+        .feedback-btn:hover {
+            opacity: 0.5;
+        }
+
+        .feedback-yes {
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #34c759;
+        }
+
+        /* 右侧地图区域 */
+        .right-section {
+            width: 25%;
+            background-color: #ffffff44;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-top: 1px solid #ffffff;
+            border-radius: 20px;
+        }
+
+        .map-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            text-decoration: none;
+        }
+
+        .map-image {
+            width: 80%;
+            height: auto;
+            aspect-ratio: 1 / 1;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+
+        /* 滑动指示器 - 修复样式使其明显可见 */
+        .slider-indicator {
+            display: flex;
+            justify-content: center;
+            margin-top: 12px;
+            gap: 8px;
+            width: 100%;
+            z-index: 10;
+        }
+
+        .slider-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #d1d1d6;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            padding: 0;
+            outline: none;
+        }
+
+        .slider-dot:hover {
+            background-color: #a8a8ad;
+            transform: scale(1.1);
+        }
+
+        .slider-dot.active {
+            background-color: #403a3b;
+            transform: scale(1.1);
+        }
+
+        /* 调整消费回忆区域容器，为小圆点留出空间 */
+        .memory-section-wrapper {
+            width: calc(100% - 26px);
+            margin: 0 auto;
+            margin-top: 5px;
+            position: relative;
+        }
+
+        /* Recent 区域整体 & 标题 */
+        .recent-section {
+            margin-top: 20px;
+            margin-bottom: 4px;
+            width: calc(100% - 26px);
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Recent 头部容器 */
+        .recent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 100%;
+            margin-bottom: 6px;
+        }
+
+        /* Recent 文字部分 */
+        .recent-header-text {
+            flex: 1;
+        }
+
+        /* 计算器图标样式 */
+        .calculator-icon {
+            width: 20px;
+            height: 20px;
+            margin-top: 40px; /* 调整垂直位置使其与标题对齐 */
+            cursor: pointer;
+            opacity: 1.0;
+            transition: opacity 0.2s ease;
+        }
+
+        .calculator-icon:hover {
+            opacity: 1;
+        }
+
+        .recent-title {
+            font-size: 37px;
+            font-weight: bold;
+            color: #403a3b;
+            margin-bottom: 0px;
+            text-align: left;
+            padding-left: 0;
+            /* 移除原来的 margin-bottom，由父容器控制间距 */
+        }
+
+        .recent-subtitle {
+            font-size: 16px;
+            color: #403a3bc5;
+            font-weight: 400;
+            text-align: left;
+            padding-left: 0;
+            /* 移除原来的 margin-bottom，由父容器控制间距 */
+        }
+
+        /* recent-list 容器 */
+        .recent-list {
+            margin-bottom: 0px;
+        }
+
+        /* 每条记录项 */
+        .recent-item {
+            display: flex;
+            align-items: flex-start;
+            background-color: #ffffff;
+            border-radius: 10px;
+            padding: 16px 16px;
+            margin-bottom: 6px;
+            width: 100%;
+            overflow: hidden;
+            min-height: 30px;
+            position: relative;
+        }
+
+        /* WECoin 进度条 */
+        .wecoin-progress {
+            position: absolute;
+            top: 0;
+            right: 0;
+            height: 100%;
+            width: 0%;
+            background:
+                radial-gradient(ellipse at 90% 20%, rgba(255, 232, 121, 0.9) 0%, rgba(255, 232, 121, 0.7) 20%, transparent 50%),
+                radial-gradient(ellipse at 80% 50%, rgba(255, 232, 121, 0.8) 0%, rgba(255, 232, 121, 0.6) 25%, transparent 55%),
+                radial-gradient(ellipse at 70% 80%, rgba(255, 232, 121, 0.7) 0%, rgba(255, 232, 121, 0.5) 30%, transparent 60%),
+                radial-gradient(ellipse at 60% 30%, rgba(255, 246, 201, 0.6) 0%, rgba(255, 246, 201, 0.4) 35%, transparent 65%),
+                radial-gradient(ellipse at 50% 70%, rgba(255, 246, 201, 0.5) 0%, rgba(255, 246, 201, 0.3) 40%, transparent 70%),
+                radial-gradient(ellipse at 40% 40%, rgba(255, 246, 201, 0.4) 0%, rgba(255, 246, 201, 0.2) 45%, transparent 75%),
+                linear-gradient(90deg,
+                    rgba(255, 232, 121, 0.9) 0%,
+                    rgba(255, 232, 121, 0.7) 30%,
+                    rgba(255, 240, 168, 0.6) 60%,
+                    rgba(255, 246, 201, 0.5) 100%);
+            border-radius: 0 10px 10px 0;
+            z-index: 0;
+            filter: blur(0.3px);
+            transition: width 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+
+        /* 商户头像 (圆形) */
+        .recent-item .merchant-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #ffc55d;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #ffffff;
+            margin-right: 12px;
+            overflow: hidden;
+            margin-top: 4px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .recent-item .merchant-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            /* 确保图片为圆形 */
+        }
+
+        /* 商户信息容器 */
+        .merchant-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            margin-top: 4px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* 商户名称 */
+        .recent-item .merchant-name {
+            color: #272224;
+            font-size: 18px;
+            font-weight: 500;
+            line-height: 1.2;
+            margin-bottom: 2px;
+        }
+
+        /* 交易日期 */
+        .transaction-date {
+            font-size: 13px;
+            color: rgba(39, 34, 36, 0.7);
+            line-height: 1.2;
+        }
+
+        /* 金额信息容器 */
+        .amount-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            margin-top: 4px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* 消费金额 */
+        .recent-item .amount {
+            font-size: 18px;
+            color: #403b3f;
+            font-weight: 500;
+            line-height: 1.2;
+            margin-bottom: 2px;
+        }
+
+        /* 折算后RMB金额 */
+        .converted-amount-recent {
+            font-size: 13px;
+            color: rgba(64, 59, 63, 0.7);
+            line-height: 1.2;
+        }
+
+        /* 在原有的CSS样式之后添加以下内容 */
+
+        .loading-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            font-size: 16px;
+        }
+
+        .no-data-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+            font-size: 16px;
+        }
+
+        .no-data-message .subtext {
+            font-size: 14px;
+            margin-top: 8px;
+            color: #aaa;
+        }
+
+        .error-message {
+            text-align: center;
+            padding: 40px 20px;
+            color: #ff3b30;
+            font-size: 16px;
+        }
+
+        .retry-btn {
+            margin-top: 12px;
+            padding: 8px 16px;
+            background-color: #007AFF;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .retry-btn:hover {
+            background-color: #0056CC;
+        }
+
+        .photo-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.1), transparent);
+        }
+
+        /* 确保图片加载失败时显示备用内容 */
+        .merchant-avatar {
+            position: relative;
+        }
+
+        .merchant-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .merchant-avatar::after {
+            content: attr(data-fallback);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #ffffff;
+            background-color: #ffc55d;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- iOS 状态栏 + 灵动岛 -->
+        <div class="dynamic-island-notch"></div>
+        <div class="ios-status-bar">
+            <span class="status-bar-time">9:41</span>
+            <div class="status-bar-icons">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon">
+                    <path
+                        d="M5.5 16.5v-3a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1zm6 0v-6a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1zm6 0v-9a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1z">
+                    </path>
+                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon">
+                    <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                    <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                    <line x1="12" y1="20" x2="12.01" y2="20"></line>
+                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="icon icon-battery">
+                    <rect x="1" y="6" width="18" height="12" rx="2" ry="2" stroke="currentColor" fill="none"
+                        stroke-width="1.5">
+                    </rect>
+                    <line x1="23" y1="10" x2="23" y2="14" stroke="currentColor" stroke-width="2"></line>
+                    <rect x="3" y="8" width="14" height="8" rx="1" ry="1" fill="currentColor" stroke="none"></rect>
+                </svg>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="content-area">
+            <div class="container">
+                <!-- 搜索栏 -->
+                <div class="search-bar">
+                    <div class="search-input-wrapper">
+                        <input type="text" id="search-input" value="" placeholder="" autocomplete="off" />
+                        <img class="search-icon" src="/static/search.png" alt="搜索" />
+                    </div>
+                </div>
+
+                <!-- 消费回忆区域 -->
+                <div class="memory-section-wrapper">
+                    <div class="memory-section">
+                        <div class="memory-slider-container" id="memory-slider">
+                        <!-- 数据加载指示器 -->
+                        <div class="loading-message" id="loading-memory">
+                            正在加载消费数据...
+                        </div>
+                        </div>
+                    </div>
+
+                    <!-- 滑动指示器 - 现在只保留小圆点 -->
+                    <div class="slider-indicator" id="slider-indicator">
+                        <!-- 指示器点将动态生成 -->
+                    </div>
+                </div>
+
+                <!-- Recent 区域 -->
+                <div class="recent-section">
+                    <div class="recent-header">
+                        <div class="recent-header-text">
+                            <h2 class="recent-title">Recent</h2>
+                            <div id="recent-subtitle" class="recent-subtitle">Wednesday</div>
+                        </div>
+                        <img src="/static/calculate.png" alt="计算器" class="calculator-icon">
+                    </div>
+
+                    <div class="recent-list" id="recent-list">
+                    <div class="loading-message" id="loading-recent">
+                        正在加载最近消费记录...
+                    </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部 Home 指示条 (iPhone style) -->
+        <div class="home-indicator"></div>
+    </div>
+
+    <script>
+        // 不需要商户推测的标签列表（可根据需要扩展）
+            const EXCLUDE_SUGGESTION_TAGS = [
+                'Transportation', 'Rent'
+            ];
+
+            // 判断是否为不需要推测的标签
+            function isExcludedTag(tag) {
+                if (!tag) return false;
+
+                // 转换为小写进行比较，避免大小写问题
+                const lowerTag = tag.toLowerCase();
+                const lowerExcluded = EXCLUDE_SUGGESTION_TAGS.map(t => t.toLowerCase());
+
+                // 检查标签是否完全匹配或部分匹配排除列表
+                return lowerExcluded.some(excluded =>
+                    lowerTag === excluded ||
+                    lowerTag.includes(excluded) ||
+                    excluded.includes(lowerTag)
+                );
+            }
+
+            // 生成标签部分的HTML
+            function generateCategorySectionHTML(tx) {
+                const tag = tx.tag || 'General';
+                const isExcluded = isExcludedTag(tag);
+
+                if (isExcluded) {
+                    // 对于排除标签，只显示标签本身，不需要推测
+                    return `
+            <div class="category-section no-suggestion">
+                <span class="tag tag-primary">${tag}</span>
+                <!-- 注意：这里没有推测文字和反馈按钮 -->
+            </div>
+        `;
+                } else {
+                    // 对于其他标签，显示完整的商户推测和反馈按钮
+                    const merchantName = tx.merchant_name || 'Unknown';
+                    const showSuggestion = merchantName !== 'Unknown';
+
+                    return `
+            <div class="category-section with-suggestion">
+                <span class="tag tag-primary">${tag}</span>
+                <span class="location-suggestion">-- Probably ${merchantName}?</span>
+                <div class="feedback-buttons">
+                    <button class="feedback-btn feedback-yes" data-tx-id="${tx.id}">✓</button>
+                </div>
+            </div>
+        `;
+                }
+            }
+
+        // 更新Recent副标题
+        function updateRecentSubtitle() {
+            const now = new Date();
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const dayName = days[now.getDay()];
+            const month = now.toLocaleString('en-US', { month: 'short' });
+            const date = now.getDate();
+            
+            // 添加日期后缀
+            let suffix = 'th';
+            if (date === 1 || date === 21 || date === 31) suffix = 'st';
+            else if (date === 2 || date === 22) suffix = 'nd';
+            else if (date === 3 || date === 23) suffix = 'rd';
+            
+            document.getElementById('recent-subtitle').textContent = `${dayName} · ${month} ${date}${suffix}`;
+        }
+
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function () {
+            updateRecentSubtitle();
+            
+            // 加载消费数据
+            loadTransactionData();
+        });
+
+        // 加载消费数据
+        async function loadTransactionData() {
+            try {
+                console.log('正在加载消费数据...');
+                
+                // 显示加载状态
+                document.getElementById('loading-memory').style.display = 'block';
+                document.getElementById('loading-recent').style.display = 'block';
+                
+                const response = await fetch('/api/transactions?limit=10');
+                const result = await response.json();
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    console.log(`成功加载 ${result.data.length} 条消费记录`);
+                    
+                    // 隐藏加载消息
+                    document.getElementById('loading-memory').style.display = 'none';
+                    document.getElementById('loading-recent').style.display = 'none';
+                    
+                    // 更新消费回忆区域
+                    updateMemorySection(result.data);
+                    
+                    // 更新Recent区域
+                    updateRecentSection(result.data);
+                    
+                    // 初始化WECoin进度条动画
+                    initWecoinProgressBars();
+                    
+                    // 初始化滑动功能
+                    initSlider(result.data.length);
+                    
+                    // 初始化反馈按钮
+                    initFeedbackButtons();
+                    
+                } else {
+                    console.log('没有消费记录数据');
+                    showNoDataMessage();
+                }
+            } catch (error) {
+                console.error('加载消费数据失败:', error);
+                showErrorMessage('加载失败，请稍后重试');
+            }
+        }
+
+        // 显示无数据消息
+        function showNoDataMessage() {
+            const memorySlider = document.getElementById('memory-slider');
+            const recentList = document.getElementById('recent-list');
+            
+            memorySlider.innerHTML = `
+                <div class="no-data-message">
+                    <p>暂无消费记录</p>
+                    <p class="subtext">完成首次消费后将显示在这里</p>
+                </div>
+            `;
+            
+            recentList.innerHTML = `
+                <div class="no-data-message">
+                    <p>暂无最近消费</p>
+                </div>
+            `;
+        }
+
+        // 显示错误消息
+        function showErrorMessage(message) {
+            const memorySlider = document.getElementById('memory-slider');
+            const recentList = document.getElementById('recent-list');
+            
+            memorySlider.innerHTML = `
+                <div class="error-message">
+                    <p>${message}</p>
+                    <button onclick="loadTransactionData()" class="retry-btn">重试</button>
+                </div>
+            `;
+            
+            recentList.innerHTML = `
+                <div class="error-message">
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        // 更新消费回忆区域
+        function updateMemorySection(transactions) {
+            const memorySlider = document.getElementById('memory-slider');
+            const sliderIndicator = document.getElementById('slider-indicator');
+            
+            // 清空现有内容
+            memorySlider.innerHTML = '';
+            sliderIndicator.innerHTML = '';
+            
+            // 按时间倒序排列（最新的在前面）
+            transactions.forEach((tx, index) => {
+                // 格式化日期
+                const photoDate = tx.photo_time ? new Date(tx.photo_time) : new Date(tx.spend_time);
+                const formattedDate = formatPhotoDate(photoDate);
+                
+                // 创建记忆项
+                const memoryItem = document.createElement('div');
+                memoryItem.className = 'memory-item';
+                memoryItem.dataset.index = index;
+                memoryItem.dataset.txId = tx.id;
+                
+                // 商户名称首字母（用于头像显示）
+                const merchantInitial = tx.merchant_name ? tx.merchant_name.charAt(0).toUpperCase() : '?';
+                
+                memoryItem.innerHTML = `
+            <div class="memory-photo-card" style="background-image: url('${tx.photo_url || '/static/default_photo.jpg'}');">
+                <div class="photo-overlay"></div>
+            </div>
+            <div class="photo-info">
+                <div class="photo-date">${formattedDate}</div>
+                <div class="photo-location">
+                    <img class="location-icon" src="/static/loc.png" alt="定位" />
+                    ${tx.location || '位置未知'}
+                </div>
+            </div>
+            <div class="memory-bill-data">
+                <div class="amount-section">
+                    <div class="amount-display">
+                        <span class="original-amount">${formatAmount(tx.amount)}</span>
+                        <span class="original-currency">${tx.currency || 'USD'}</span>
+                        <span class="conversion-symbol">≈</span>
+                        <span class="converted-amount">${formatAmount(tx.converted_amount)}</span>
+                        <span class="converted-currency">RMB</span>
+                    </div>
+                </div>
+                <div class="bottom-section">
+                    <div class="left-section">
+                        ${generateCategorySectionHTML(tx)}
+                        <div class="note-section">
+                            <input type="text" class="note-input" 
+                                   placeholder="Add a note" 
+                                   value="${tx.note || ''}"
+                                   data-tx-id="${tx.id}">
+                        </div>
+                    </div>
+                    <div class="right-section">
+                        <a href="https://maps.apple.com/?q=${encodeURIComponent(tx.location || 'Abu Dhabi, United Arab Emirates')}" 
+                           class="map-link" target="_blank">
+                            <img src="${tx.location_image || '/static/map.jpg'}" alt="查看地图" class="map-image">
+                        </a>
+                    </div>
+                </div>
+            </div>
+        `;
+                
+                memorySlider.appendChild(memoryItem);
+                
+                // 创建滑动指示点
+                const sliderDot = document.createElement('button');
+                sliderDot.className = `slider-dot ${index === 0 ? 'active' : ''}`;
+                sliderDot.dataset.index = index;
+                sliderDot.setAttribute('aria-label', `切换到${tx.merchant_name || '账单'}${index + 1}`);
+                sliderIndicator.appendChild(sliderDot);
+            });
+        }
+
+        // 更新Recent区域
+        function updateRecentSection(transactions) {
+            const recentList = document.getElementById('recent-list');
+            
+            // 清空现有内容
+            recentList.innerHTML = '';
+            
+            // 按时间倒序排列（最新的在前面）
+            transactions.forEach((tx, index) => {
+                const recentItem = document.createElement('div');
+                recentItem.className = 'recent-item';
+                recentItem.dataset.txId = tx.id;
+                
+                // 商户头像内容
+                const merchantAvatar = tx.merchant_avatar ? 
+                    `<img src="${tx.merchant_avatar}" alt="${tx.merchant_name}" onerror="this.onerror=null; this.parentElement.textContent='${tx.merchant_name ? tx.merchant_name.charAt(0).toUpperCase() : '?'}';">` : 
+                    (tx.merchant_name ? tx.merchant_name.charAt(0).toUpperCase() : '?');
+                
+                // 格式化消费时间
+                const spendDate = new Date(tx.spend_time);
+                const formattedTime = formatSpendTime(spendDate);
+                
+                // WECoin进度条百分比（模拟逻辑：根据消费金额和顺序计算）
+                const progressPercent = calculateProgressPercent(tx.amount, index);
+                
+                recentItem.innerHTML = `
+                    <div class="wecoin-progress" data-target-width="${progressPercent}%"></div>
+                    <div class="merchant-avatar">
+                        ${merchantAvatar}
+                    </div>
+                    <div class="merchant-info">
+                        <div class="merchant-name">${tx.merchant_name || 'Unknown Merchant'}</div>
+                        <div class="transaction-date">${formattedTime}</div>
+                    </div>
+                    <div class="amount-info">
+                        <div class="amount">${formatAmount(tx.amount)} ${tx.currency || 'USD'}</div>
+                        <div class="converted-amount-recent">≈ ${formatAmount(tx.converted_amount)} RMB</div>
+                    </div>
+                `;
+                
+                recentList.appendChild(recentItem);
+            });
+        }
+
+        // 辅助函数：格式化金额
+        function formatAmount(amount) {
+            if (amount === undefined || amount === null) return '0.00';
+            return parseFloat(amount).toFixed(2);
+        }
+
+        // 辅助函数：格式化照片日期
+        function formatPhotoDate(date) {
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            const dayName = days[date.getDay()];
+            const month = months[date.getMonth()];
+            const day = date.getDate();
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            
+            return `${dayName} · ${month} ${day} · ${hours}:${minutes}`;
+        }
+
+        // 辅助函数：格式化消费时间
+        function formatSpendTime(date) {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            const month = months[date.getMonth()];
+            const day = date.getDate();
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            
+            // 添加日期后缀
+            let suffix = 'th';
+            if (day === 1 || day === 21 || day === 31) suffix = 'st';
+            else if (day === 2 || day === 22) suffix = 'nd';
+            else if (day === 3 || day === 23) suffix = 'rd';
+            
+            return `${month}. ${day}${suffix} ${hours}:${minutes}`;
+        }
+
+        // 计算WECoin进度百分比（模拟逻辑）
+        function calculateProgressPercent(amount, index) {
+            // 这里可以根据实际业务逻辑计算
+            // 暂时使用模拟逻辑：消费越多，进度越快；时间越近，进度百分比越高
+            const baseProgress = Math.min(Math.abs(amount) * 2, 10); // 基于金额
+            const timeBonus = (3 - Math.min(index, 3)) * 5; // 基于时间顺序（前3个有额外奖励）
+            return Math.min(baseProgress + timeBonus, 20);
+        }
+
+        // 初始化WECoin进度条动画
+        function initWecoinProgressBars() {
+            const progressBars = document.querySelectorAll('.wecoin-progress');
+            
+            progressBars.forEach((bar, index) => {
+                const targetWidth = bar.getAttribute('data-target-width') || '0%';
+                
+                setTimeout(() => {
+                    bar.style.width = targetWidth;
+                }, 300 + (index * 130));
+            });
+        }
+
+        // 初始化滑动功能
+        function initSlider(totalSlides) {
+            if (totalSlides <= 0) return;
+            
+            const memorySlider = document.getElementById('memory-slider');
+            const sliderDots = document.querySelectorAll('.slider-dot');
+            
+            let currentSlide = 0;
+            
+            // 更新滑动指示器
+            function updateSliderIndicator() {
+                sliderDots.forEach((dot, index) => {
+                    if (index === currentSlide) {
+                        dot.classList.add('active');
+                    } else {
+                        dot.classList.remove('active');
+                    }
+                });
+            }
+            
+            // 滑动到指定索引
+            function slideTo(index) {
+                if (index < 0 || index >= totalSlides) return;
+                
+                currentSlide = index;
+                memorySlider.style.transform = `translateX(-${currentSlide * 100}%)`;
+                updateSliderIndicator();
+            }
+            
+            // 绑定指示器点击事件
+            sliderDots.forEach(dot => {
+                dot.addEventListener('click', function () {
+                    const index = parseInt(this.getAttribute('data-index'));
+                    slideTo(index);
+                });
+            });
+            
+            // 触摸滑动支持
+            let startX = 0;
+            let endX = 0;
+            
+            memorySlider.addEventListener('touchstart', function (e) {
+                startX = e.touches[0].clientX;
+            }, { passive: true });
+            
+            memorySlider.addEventListener('touchend', function (e) {
+                endX = e.changedTouches[0].clientX;
+                handleSwipe();
+            }, { passive: true });
+            
+            function handleSwipe() {
+                const diff = startX - endX;
+                const swipeThreshold = 50;
+                
+                if (Math.abs(diff) > swipeThreshold) {
+                    if (diff > 0) {
+                        // 从左向右滑动 - 查看更近的账单
+                        if (currentSlide < totalSlides - 1) {
+                            slideTo(currentSlide + 1);
+                        }
+                    } else {
+                        // 从右向左滑动 - 查看更早的账单
+                        if (currentSlide > 0) {
+                            slideTo(currentSlide - 1);
+                        }
+                    }
+                }
+            }
+            
+            // 键盘支持（可选功能）
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    if (currentSlide > 0) {
+                        slideTo(currentSlide - 1);
+                    }
+                } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    if (currentSlide < totalSlides - 1) {
+                        slideTo(currentSlide + 1);
+                    }
+                }
+            });
+        }
+
+        // 初始化反馈按钮
+        function initFeedbackButtons() {
+             // 只为有反馈按钮的元素绑定事件
+            document.querySelectorAll('.feedback-yes').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const txId = this.getAttribute('data-tx-id');
+                    const categorySection = this.closest('.category-section');
+                    const locationSuggestion = categorySection.querySelector('.location-suggestion');
+
+                    if (locationSuggestion) {
+                        const merchantName = locationSuggestion.textContent.replace('-- Probably ', '').replace('?', '');
+                        locationSuggestion.textContent = `-- AT ${merchantName}`;
+                        this.style.display = 'none';
+
+                        // 保存反馈到后端的逻辑
+                        console.log(`确认位置: 交易ID ${txId}, 商户: ${merchantName}`);
+                        saveFeedbackToBackend(txId, merchantName);
+                    }
+                });
+            });
+
+            // 保存反馈到后端
+            function saveFeedbackToBackend(txId, merchantName) {
+                fetch(`/api/transactions/${txId}/feedback`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        merchant_name: merchantName,
+                        confirmed: true
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            console.log('反馈保存成功');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('保存反馈失败:', error);
+                    });
+            }
+            
+            // 备注输入框事件
+            document.querySelectorAll('.note-input').forEach(input => {
+                input.addEventListener('change', function () {
+                    const txId = this.getAttribute('data-tx-id');
+                    const note = this.value;
+                    
+                    // 这里可以添加保存备注到后端的逻辑
+                    console.log(`更新备注: 交易ID ${txId}, 备注: ${note}`);
+                });
+                
+                // 防抖处理
+                let timeout;
+                input.addEventListener('input', function () {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => {
+                        const txId = this.getAttribute('data-tx-id');
+                        const note = this.value;
+                        console.log(`输入备注: 交易ID ${txId}, 备注: ${note}`);
+                    }, 500);
+                });
+            });
+        }
+
+        // 添加搜索功能
+        document.getElementById('search-input')?.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase().trim();
+            
+            if (searchTerm) {
+                // 这里可以添加搜索过滤逻辑
+                console.log('搜索关键词:', searchTerm);
+                // 实际项目中可以调用后端搜索API或前端过滤
+            }
+        });
+
+        // 添加计算器图标点击事件
+        document.getElementById('calculator-icon')?.addEventListener('click', function() {
+            alert('计算器功能开发中...');
+            // 这里可以打开计算器功能
+        });
+
+        // 页面刷新处理
+        window.addEventListener('beforeunload', function () {
+            const progressBars = document.querySelectorAll('.wecoin-progress');
+            progressBars.forEach(bar => {
+                bar.style.width = '0%';
+            });
+        });
+        
+        // 添加一些额外的CSS样式
+        const style = document.createElement('style');
+        style.textContent = `
+            .loading-message {
+                text-align: center;
+                padding: 40px 20px;
+                color: #666;
+                font-size: 16px;
+            }
+            .no-data-message {
+                text-align: center;
+                padding: 60px 20px;
+                color: #999;
+                font-size: 16px;
+            }
+            .no-data-message .subtext {
+                font-size: 14px;
+                margin-top: 8px;
+                color: #aaa;
+            }
+            .error-message {
+                text-align: center;
+                padding: 40px 20px;
+                color: #ff3b30;
+                font-size: 16px;
+            }
+            .retry-btn {
+                margin-top: 12px;
+                padding: 8px 16px;
+                background-color: #007AFF;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 14px;
+            }
+            .retry-btn:hover {
+                background-color: #0056CC;
+            }
+            .photo-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(to bottom, rgba(0,0,0,0.1), transparent);
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+
+</html>

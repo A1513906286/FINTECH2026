@@ -1,0 +1,30 @@
+{
+  "user_name": "",
+  "summary": "该用户主要进行小额的日常生活消费，如餐饮、咖啡奶茶等，偶尔会进行线上购物和理财操作",
+  "income_stability": "中",
+  "risk_preference": "偏稳健",
+  "consumption_patterns": {
+    "main_categories": [
+      "餐饮与外卖",
+      "咖啡奶茶"
+    ],
+    "small_ticket_high_frequency": true,
+    "night_consumption_tendency": "一般",
+    "online_offline_mix": "偏线上"
+  },
+  "preferred_tags": [
+    "coffee",
+    "milk_tea",
+    "fast_food",
+    "convenience_store",
+    "online_shopping",
+    "digital_payment"
+  ],
+  "evidence_examples": [
+    "频繁出现 茶百道/喜茶/奶茶 相关消费，金额 10-30 元",
+    "常见的线上购物平台：淘宝、京东等",
+    "理财操作中使用了多个支付平台"
+  ],
+  "source_txt": "么越瀚_20251126_171117.txt",
+  "generated_at": "2025-11-26T17:11:21.245269"
+}

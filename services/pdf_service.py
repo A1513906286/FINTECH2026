@@ -12,7 +12,9 @@ class PDFService:
 
     def __init__(self):
         self.upload_folder = 'uploads/pdfs'
+        self.user_persona_folder = 'user_persona'
         os.makedirs(self.upload_folder, exist_ok=True)
+        os.makedirs(self.user_persona_folder, exist_ok=True)
 
     def _extract_number(self, text):
         """从文本中提取数字（支持RMB格式）"""
@@ -349,84 +351,432 @@ class PDFService:
             'transaction_count_12m': 653,
         }
     
+    def _save_extracted_info_to_txt(self, pdf_path, result_data):
+        """
+        将提取的PDF信息保存到txt文件
+        
+        Args:
+            pdf_path: PDF文件路径
+            result_data: 提取结果数据字典
+        """
+        try:
+            # 获取户名，用于文件名
+            account_name = result_data.get('account_name', '')
+            if account_name:
+                # 清理户名，移除可能存在的非法文件名字符
+                account_name = re.sub(r'[<>:"/\\|?*]', '', account_name)
+                account_name = account_name.strip()
+            
+            # 生成txt文件名（优先使用户名，否则使用PDF文件名+时间戳）
+            if account_name:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                txt_filename = f"{account_name}_{timestamp}.txt"
+            else:
+                # 如果提取不到户名，使用原来的命名方式
+                pdf_filename = os.path.splitext(os.path.basename(pdf_path))[0]
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                txt_filename = f"{pdf_filename}_{timestamp}.txt"
+            
+            txt_filepath = os.path.join(self.user_persona_folder, txt_filename)
+            
+            # 准备写入内容
+            content_lines = []
+            content_lines.append("=" * 80)
+            content_lines.append("银行流水提取信息")
+            content_lines.append("=" * 80)
+            content_lines.append(f"提取时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            content_lines.append(f"PDF文件路径: {pdf_path}")
+            if account_name:
+                content_lines.append(f"户名: {account_name}")
+            content_lines.append("")
+            
+            # 添加统计信息
+            content_lines.append("-" * 80)
+            content_lines.append("统计信息")
+            content_lines.append("-" * 80)
+            if 'total_income' in result_data:
+                if account_name:
+                    content_lines.append(f"户名: {account_name}")
+                content_lines.append(f"总收入: ¥{result_data.get('total_income', 0):,.2f}")
+                content_lines.append(f"总支出: ¥{result_data.get('total_expense', 0):,.2f}")
+                content_lines.append(f"当前余额: ¥{result_data.get('current_balance', 0):,.2f}")
+                content_lines.append(f"交易总数: {result_data.get('total_transactions', 0)}")
+                content_lines.append(f"3个月平均收入: ¥{result_data.get('avg_income_3m', 0):,.2f}")
+                content_lines.append(f"3个月收入方差: ¥{result_data.get('income_variance_3m', 0):,.2f}")
+                content_lines.append(f"大额支出平均: ¥{result_data.get('avg_large_spending', 0):,.2f}")
+                content_lines.append(f"平均月消费: ¥{result_data.get('avg_monthly_consumption', 0):,.2f}")
+                content_lines.append(f"最低余额(12个月): ¥{result_data.get('min_balance_12m', 0):,.2f}")
+                content_lines.append(f"发薪日后5天余额下降: ¥{result_data.get('payday_plus_5_drop', 0):,.2f}")
+                content_lines.append(f"大额取现比例: {result_data.get('large_withdrawal_ratio', 0):.2%}")
+                content_lines.append(f"ATM取现总额: ¥{result_data.get('atm_withdrawal_total', 0):,.2f}")
+                content_lines.append(f"POS消费总额: ¥{result_data.get('pos_spending_total', 0):,.2f}")
+                content_lines.append(f"转账总额: ¥{result_data.get('transfer_total', 0):,.2f}")
+                content_lines.append(f"交易笔数(3个月): {result_data.get('transaction_count_3m', 0)}")
+                content_lines.append(f"交易笔数(12个月): {result_data.get('transaction_count_12m', 0)}")
+            else:
+                content_lines.append(f"余额: ¥{result_data.get('balance', 0):,.2f}")
+            content_lines.append("")
+            
+            # 添加交易列表
+            transactions = result_data.get('transactions', [])
+            if transactions:
+                content_lines.append("-" * 80)
+                content_lines.append(f"交易明细 (共{len(transactions)}笔)")
+                content_lines.append("-" * 80)
+                # 表头：日期、类型、分类、金额、余额、摘要、对方户名
+                content_lines.append(
+                    f"{'日期':<12} {'类型':<8} {'分类':<12} {'金额':>15} {'余额':>15}  {'摘要':<20}  {'对方户名':<30}"
+                )
+                content_lines.append("-" * 80)
+                
+                # 类型映射
+                type_map = {
+                    'income': '收入',
+                    'expense': '支出',
+                    'unknown': '未知'
+                }
+                
+                # 分类映射
+                category_map = {
+                    'atm_withdrawal': 'ATM取现',
+                    'pos_spending': 'POS消费',
+                    'transfer': '转账',
+                    'salary': '工资',
+                    'repayment': '还款',
+                    'income': '收入',
+                    'expense': '支出',
+                    'unknown': '其他'
+                }
+                
+                for trans in transactions:
+                    date_str = trans.get('date', '')
+                    # 格式化日期
+                    try:
+                        if len(date_str) == 8:
+                            formatted_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
+                        else:
+                            formatted_date = date_str
+                    except:
+                        formatted_date = date_str
+                    
+                    trans_type = type_map.get(trans.get('type', 'unknown'), '未知')
+                    category = category_map.get(trans.get('category', 'unknown'), '其他')
+                    amount = trans.get('amount', 0)
+                    balance = trans.get('balance', 0)
+                    description = trans.get('description', '') or ''
+                    recipient = (trans.get('recipient', '') or '').strip()
+
+                    # 对方户名清洗规则：
+                    # 1. 如果整列只有一个 N / n，认为是无户名，置为空
+                    # 2. 如果以空格+N结尾（冲账标识），去掉末尾的 N
+                    if recipient.upper() == 'N':
+                        recipient = ''
+                    else:
+                        recipient = re.sub(r"\s+N$", "", recipient)
+                    
+                    # 限制摘要和对方户名的长度，避免表格过宽
+                    description_display = description[:18] if len(description) > 18 else description
+                    recipient_display = recipient[:28] if len(recipient) > 28 else recipient
+                    
+                    content_lines.append(
+                        f"{formatted_date:<12} {trans_type:<8} {category:<12} "
+                        f"¥{amount:>14,.2f} ¥{balance:>14,.2f}  {description_display:<20}  {recipient_display:<30}"
+                    )
+            
+            content_lines.append("")
+            content_lines.append("=" * 80)
+            content_lines.append(f"消息: {result_data.get('message', '无')}")
+            content_lines.append("=" * 80)
+            
+            # 写入文件
+            with open(txt_filepath, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(content_lines))
+            
+            print(f"  提取信息已保存到: {txt_filepath}")
+            
+        except Exception as e:
+            print(f"保存提取信息到txt文件时出错: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _extract_account_name(self, text):
+        """从PDF文本中提取户名"""
+        if not text:
+            return None
+        
+        # 尝试匹配"户名"或"Account name"后面的内容
+        patterns = [
+            r'户名[：:]\s*([^\n\r]+?)(?:\s+证件|$)',
+            r'Account\s+name[：:]\s*([^\n\r]+?)(?:\s+ID|$)',
+            r'户名\s+([^\n\r]+?)(?:\s+证件|$)',
+            r'Account\s+name\s+([^\n\r]+?)(?:\s+ID|$)',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                name = match.group(1).strip()
+                # 移除可能的括号内容（如英文名），但保留中文名
+                # 如果包含中文，优先保留中文部分
+                chinese_name = re.sub(r'\s*\([^)]*\)', '', name)
+                # 如果移除括号后还有内容，使用它；否则使用原名
+                if chinese_name.strip():
+                    name = chinese_name
+                # 移除多余的空白字符，但保留单个空格（如果有多个字）
+                name = re.sub(r'\s+', '', name)
+                if name:
+                    return name
+        
+        return None
+
+    def _extract_description_and_recipient_from_line(self, line):
+        """从交易行文本中提取交易摘要和对方户名（文本模式）"""
+        description = ''
+        recipient = ''
+        
+        if not line:
+            return description, recipient
+        
+        # 移除日期和金额部分，保留描述部分
+        # 先移除开头的日期
+        line_clean = re.sub(r'^\d{8}\s*', '', line)
+        # 移除RMB金额
+        line_clean = re.sub(r'RMB\s+[\d,]+\.?\d*', '', line_clean)
+        # 移除账户序号
+        line_clean = re.sub(r'00000\d+\s*', '', line_clean)
+        
+        # 尝试提取交易摘要和对方户名
+        # 通常格式：摘要在前，对方户名在后，用空格或特殊字符分隔
+        parts = line_clean.strip().split()
+        
+        if len(parts) >= 1:
+            # 第一个非空部分通常是摘要
+            description = parts[0] if parts[0] else ''
+        
+        if len(parts) >= 2:
+            # 后面的部分可能是对方户名
+            recipient = ' '.join(parts[1:]) if len(parts) > 1 else ''
+        
+        # 清理提取的内容
+        description = description.strip()
+        recipient = recipient.strip()
+        
+        return description, recipient
+
     def extract_bank_statement(self, pdf_path):
         """
         提取银行流水 - 增强版，提取详细交易数据用于特征工程
 
         逻辑：
-        1. 提取每行的日期、交易金额和余额
-        2. 通过余额变化判断收入/支出
-        3. 识别ATM取现、POS消费等交易类型
-        4. 按月份分组统计
-        5. 返回详细的交易列表和统计数据
+        1. 提取户名
+        2. 提取每行的日期、交易金额和余额
+        3. 提取交易摘要和对方户名
+        4. 通过余额变化判断收入/支出
+        5. 识别ATM取现、POS消费等交易类型
+        6. 按月份分组统计
+        7. 返回详细的交易列表和统计数据
         """
         try:
-            transactions = []  # 存储所有交易: {date, amount, balance, type, category}
+            transactions = []  # 存储所有交易: {date, amount, balance, type, category, description, recipient}
+            account_name = None  # 户名
 
             print(f"\n开始解析PDF: {pdf_path}")
 
             with pdfplumber.open(pdf_path) as pdf:
+                # 首先提取户名（通常在第一页）
+                first_page_text = ''
+                if len(pdf.pages) > 0:
+                    first_page_text = pdf.pages[0].extract_text() or ''
+                    account_name = self._extract_account_name(first_page_text)
+                    if account_name:
+                        print(f"  提取到户名: {account_name}")
+
+                # 尝试使用表格提取（更准确）
+                table_extracted = False
                 for page_num, page in enumerate(pdf.pages, 1):
-                    text = page.extract_text()
-                    if not text:
-                        continue
+                    tables = page.extract_tables()
+                    if tables:
+                        for table in tables:
+                            # 查找表头，确定列索引
+                            header_row_idx = None
+                            date_col = None
+                            income_col = None
+                            expense_col = None
+                            balance_col = None
+                            desc_col = None
+                            recipient_col = None
+                            
+                            for row_idx, row in enumerate(table):
+                                if not row:
+                                    continue
+                                
+                                row_str = '|'.join([str(c) if c else '' for c in row])
+                                
+                                # 查找表头行
+                                if '交易日期' in row_str or 'Transaction date' in row_str:
+                                    header_row_idx = row_idx
+                                    # 确定各列的索引
+                                    for col_idx, cell in enumerate(row):
+                                        if not cell:
+                                            continue
+                                        cell_str = str(cell).strip()
+                                        if '交易日期' in cell_str or 'Transaction date' in cell_str:
+                                            date_col = col_idx
+                                        elif '收入金额' in cell_str or 'Account receivable' in cell_str:
+                                            income_col = col_idx
+                                        elif '支出金额' in cell_str or 'Account paid' in cell_str:
+                                            expense_col = col_idx
+                                        elif '账户余额' in cell_str or 'Account balance' in cell_str:
+                                            balance_col = col_idx
+                                        elif '交易摘要' in cell_str or 'Description' in cell_str:
+                                            desc_col = col_idx
+                                        elif '对方户名' in cell_str or 'Recipient' in cell_str:
+                                            recipient_col = col_idx
+                                    
+                                    # 如果找到了表头，提取数据行
+                                    if header_row_idx is not None and date_col is not None:
+                                        # 计算最大列索引
+                                        max_col_idx = max([col for col in [date_col, income_col, expense_col, balance_col, desc_col, recipient_col] if col is not None], default=0)
+                                        
+                                        for data_row in table[header_row_idx + 1:]:
+                                            if not data_row or len(data_row) <= max_col_idx:
+                                                continue
+                                            
+                                            # 提取日期
+                                            date_cell = str(data_row[date_col]).strip() if date_col < len(data_row) and data_row[date_col] else ''
+                                            date_match = re.match(r'^(\d{8})', date_cell)
+                                            if not date_match:
+                                                continue
+                                            
+                                            date_str = date_match.group(1)
+                                            
+                                            # 提取金额
+                                            income = 0.0
+                                            expense = 0.0
+                                            balance = 0.0
+                                            
+                                            if income_col is not None and income_col < len(data_row):
+                                                income = self._extract_number(data_row[income_col])
+                                            if expense_col is not None and expense_col < len(data_row):
+                                                expense = self._extract_number(data_row[expense_col])
+                                            if balance_col is not None and balance_col < len(data_row):
+                                                balance = self._extract_number(data_row[balance_col])
+                                            
+                                            # 提取摘要和对方户名
+                                            description = ''
+                                            recipient = ''
+                                            if desc_col is not None and desc_col < len(data_row):
+                                                description = str(data_row[desc_col]).strip() if data_row[desc_col] else ''
+                                            if recipient_col is not None and recipient_col < len(data_row):
+                                                recipient = str(data_row[recipient_col]).strip() if data_row[recipient_col] else ''
+                                            
+                                            # 识别交易类型
+                                            desc_line = description + ' ' + recipient
+                                            category = self._identify_transaction_category(desc_line)
+                                            
+                                            # 添加交易记录
+                                            if income > 0:
+                                                transactions.append({
+                                                    'date': date_str,
+                                                    'amount': income,
+                                                    'balance': balance,
+                                                    'type': 'income',
+                                                    'category': 'income',
+                                                    'description': description,
+                                                    'recipient': recipient
+                                                })
+                                            if expense > 0:
+                                                transactions.append({
+                                                    'date': date_str,
+                                                    'amount': expense,
+                                                    'balance': balance,
+                                                    'type': 'expense',
+                                                    'category': category if category != 'unknown' else 'expense',
+                                                    'description': description,
+                                                    'recipient': recipient
+                                                })
+                                        
+                                        table_extracted = True
+                                        break
+                            
+                            if table_extracted:
+                                break
+                    
+                    if table_extracted:
+                        break
 
-                    lines = text.split('\n')
-
-                    for line in lines:
-                        # 跳过表头和空行
-                        if not line or '交易日期' in line or 'Transaction' in line:
+                # 如果表格提取失败，使用文本提取（备用方案）
+                if not table_extracted:
+                    for page_num, page in enumerate(pdf.pages, 1):
+                        text = page.extract_text()
+                        if not text:
                             continue
 
-                        # 提取日期 (格式: 20250810)
-                        date_match = re.match(r'^(\d{8})', line.strip())
-                        if not date_match:
-                            continue
+                        lines = text.split('\n')
 
-                        date_str = date_match.group(1)
+                        for line in lines:
+                            # 跳过表头和空行
+                            if not line or '交易日期' in line or 'Transaction' in line:
+                                continue
 
-                        # 识别交易类型
-                        category = self._identify_transaction_category(line)
+                            # 提取日期 (格式: 20250810)
+                            date_match = re.match(r'^(\d{8})', line.strip())
+                            if not date_match:
+                                continue
 
-                        # 查找所有RMB金额
-                        rmb_amounts = re.findall(r'RMB\s+([\d,]+\.?\d*)', line)
+                            date_str = date_match.group(1)
 
-                        if len(rmb_amounts) == 2:
-                            # 2个金额：第1个是交易金额，第2个是余额
-                            amount = self._extract_number(rmb_amounts[0])
-                            balance = self._extract_number(rmb_amounts[1])
+                            # 提取交易摘要和对方户名
+                            description, recipient = self._extract_description_and_recipient_from_line(line)
 
-                            if amount > 0 and balance > 0:
-                                transactions.append({
-                                    'date': date_str,
-                                    'amount': amount,
-                                    'balance': balance,
-                                    'type': None,  # 待判断
-                                    'category': category
-                                })
+                            # 识别交易类型
+                            category = self._identify_transaction_category(line)
 
-                        elif len(rmb_amounts) == 3:
-                            # 3个金额：第1个是收入，第2个是支出，第3个是余额
-                            income = self._extract_number(rmb_amounts[0])
-                            expense = self._extract_number(rmb_amounts[1])
-                            balance = self._extract_number(rmb_amounts[2])
+                            # 查找所有RMB金额
+                            rmb_amounts = re.findall(r'RMB\s+([\d,]+\.?\d*)', line)
 
-                            if income > 0:
-                                transactions.append({
-                                    'date': date_str,
-                                    'amount': income,
-                                    'balance': balance,
-                                    'type': 'income',
-                                    'category': 'income'
-                                })
-                            if expense > 0:
-                                transactions.append({
-                                    'date': date_str,
-                                    'amount': expense,
-                                    'balance': balance,
-                                    'type': 'expense',
-                                    'category': category if category != 'unknown' else 'expense'
-                                })
+                            if len(rmb_amounts) == 2:
+                                # 2个金额：第1个是交易金额，第2个是余额
+                                amount = self._extract_number(rmb_amounts[0])
+                                balance = self._extract_number(rmb_amounts[1])
+
+                                if amount > 0 and balance > 0:
+                                    transactions.append({
+                                        'date': date_str,
+                                        'amount': amount,
+                                        'balance': balance,
+                                        'type': None,  # 待判断
+                                        'category': category,
+                                        'description': description,
+                                        'recipient': recipient
+                                    })
+
+                            elif len(rmb_amounts) == 3:
+                                # 3个金额：第1个是收入，第2个是支出，第3个是余额
+                                income = self._extract_number(rmb_amounts[0])
+                                expense = self._extract_number(rmb_amounts[1])
+                                balance = self._extract_number(rmb_amounts[2])
+
+                                if income > 0:
+                                    transactions.append({
+                                        'date': date_str,
+                                        'amount': income,
+                                        'balance': balance,
+                                        'type': 'income',
+                                        'category': 'income',
+                                        'description': description,
+                                        'recipient': recipient
+                                    })
+                                if expense > 0:
+                                    transactions.append({
+                                        'date': date_str,
+                                        'amount': expense,
+                                        'balance': balance,
+                                        'type': 'expense',
+                                        'category': category if category != 'unknown' else 'expense',
+                                        'description': description,
+                                        'recipient': recipient
+                                    })
 
             # 通过余额变化判断收入/支出
             print(f"  找到{len(transactions)}笔交易")
@@ -468,8 +818,9 @@ class PDFService:
                 # 格式化交易列表供前端显示
                 formatted_transactions = self._format_transactions_for_display(transactions)
 
-                return {
+                result = {
                     'success': True,
+                    'account_name': account_name,  # 户名
                     'transactions': transactions,  # 原始交易列表（用于后端计算）
                     'formatted_transactions': formatted_transactions,  # 格式化后的交易列表（用于前端显示）
                     **detailed_stats,  # 详细统计数据
@@ -478,14 +829,29 @@ class PDFService:
                               f'支出¥{detailed_stats["total_expense"]:.2f}, '
                               f'最终余额¥{detailed_stats["current_balance"]:,.2f}'
                 }
+                
+                # 保存提取信息到txt文件
+                self._save_extracted_info_to_txt(pdf_path, result)
+                
+                return result
             else:
-                return self._get_default_statement()
+                default_result = self._get_default_statement()
+                # 即使使用默认数据，也保存到txt文件
+                self._save_extracted_info_to_txt(pdf_path, default_result)
+                return default_result
 
         except Exception as e:
             print(f"PDF解析错误: {e}")
             import traceback
             traceback.print_exc()
-            return self._get_default_statement()
+            error_result = self._get_default_statement()
+            error_result['message'] = f'PDF解析错误: {str(e)}'
+            # 即使出错，也尝试保存错误信息
+            try:
+                self._save_extracted_info_to_txt(pdf_path, error_result)
+            except:
+                pass
+            return error_result
 
     def _get_default_statement(self):
         """返回默认银行流水数据（增强版）"""
@@ -558,10 +924,10 @@ class PDFService:
                 }
             else:
                 return {
-                    'success': True,
-                    'balance': 50000.0,
+                    'success': False,
+                    'balance': 0.0,
                     'currency': 'RMB',
-                    'message': '使用默认余额'
+                    'message': '未能从PDF中提取到余额，请检查PDF格式'
                 }
 
         except Exception as e:

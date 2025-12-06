@@ -1,4 +1,5 @@
 import random
+import json
 from config.lottery_rules import PRIZE_RULE_MAPPING, RULE_MULTIPLIER, MAX_MULTIPLIER
 # 需要 database.list_all_rewards(), database.aggregate_transactions(), database.get_credit_info()
 # 假设注入 db 对象
@@ -35,7 +36,66 @@ def evaluate_user_rules(user_profile):
     return rules_hit
 
 
-def compute_weights(db, user_id):
+def _boost_weight_by_persona(reward_row, persona):
+    """
+    根据用户画像中的 preferred_tags，微调单个奖品的权重倍数。
+    这里只做一个简单映射：例如 喜欢 coffee/milk_tea -> 提升咖啡券/餐饮券类奖品权重。
+    """
+    if not persona:
+        return 1.0
+
+    tags = {str(t).lower() for t in (persona.get("preferred_tags") or [])}
+    title = (reward_row.get("title") or "").lower()
+    details = (reward_row.get("details") or "").lower()
+    extra_info_raw = reward_row.get("extra_info")
+
+    # 如果 reward.extra_info 是 JSON，尝试解析其中的 tags
+    reward_tags = set()
+    if extra_info_raw:
+        try:
+            extra = json.loads(extra_info_raw)
+            for t in extra.get("tags", []):
+                reward_tags.add(str(t).lower())
+        except Exception:
+            pass
+
+    text = f"{title} {details}"
+
+    multiplier = 1.0
+
+    # 咖啡/奶茶/餐饮
+    if (
+        {"coffee", "milk_tea", "fast_food"} & tags
+        and (
+            any(k in text for k in ["coffee", "cafe", "咖啡", "奶茶", "餐饮", "外卖"])
+            or {"coffee", "milk_tea", "food"} & reward_tags
+        )
+    ):
+        multiplier *= 1.5
+
+    # 购物/线上消费
+    if (
+        {"online_shopping", "digital_payment"} & tags
+        and (any(k in text for k in ["购物", "mall", "商城", "电商"]) or {"shopping"} & reward_tags)
+    ):
+        multiplier *= 1.3
+
+    # 出行/交通
+    if "public_transport" in tags and any(k in text for k in ["地铁", "公交", "出行", "打车"]):
+        multiplier *= 1.2
+
+    # 医疗/健康
+    if "healthcare" in tags and any(k in text for k in ["医院", "体检", "健康"]):
+        multiplier *= 1.2
+
+    # 控制上限，避免和规则乘子叠加过高
+    if multiplier > 2.0:
+        multiplier = 2.0
+
+    return multiplier
+
+
+def compute_weights(db, user_id, persona=None):
     """
     计算所有奖品（来自 reward 表）的最终权重（基于 base_prob 与命中规则的乘子）
     返回列表: [ { reward_row..., 'weight': float } ... ]
@@ -83,6 +143,10 @@ def compute_weights(db, user_id):
                     if rules_hit.get(rule_name):
                         total_multiplier *= RULE_MULTIPLIER  # 统一乘子 1.3
 
+                # 基于用户画像的偏好调权（例如：咖啡券、餐饮券等）
+                persona_multiplier = _boost_weight_by_persona(r, persona)
+                total_multiplier *= persona_multiplier
+
                 # 最大倍数上限保护
                 if total_multiplier > MAX_MULTIPLIER:
                     total_multiplier = MAX_MULTIPLIER
@@ -126,13 +190,13 @@ def weighted_choice(prob_map):
     return list(prob_map.keys())[-1]
 
 
-def draw_four_with_reduction(db, user_id):
+def draw_four_with_reduction(db, user_id, persona=None):
     """
     抽四张卡（放回抽样，但每次某奖品被抽中后其后续权重降低 40%）
     返回 list of reward_row dict（可能重复）
     """
-    # 1) 初始权重
-    weighted = compute_weights(db, user_id)
+    # 1) 初始权重（结合用户画像进行个性化调权）
+    weighted = compute_weights(db, user_id, persona=persona)
     # 用 id->entry 映射加方便修改权重
     id_to_reward = {r['id']: r for r in weighted}
 
